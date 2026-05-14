@@ -3,54 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Manajemen BTPA</title>
+    <title>BTPA Hub - Enterprise</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { emerald: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' } }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
-        body { margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Inter', system-ui, sans-serif;}
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo, useRef } from 'https://esm.sh/react@18.2.0';
-        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
-        import { 
-            Menu, X, Users, PlusCircle, Inbox, Activity, 
-            Trash2, CheckCircle2, XCircle, AlertCircle, 
-            RefreshCw, CheckSquare, Archive, ChevronRight,
-            Calendar, Hash, ListOrdered, FileText, BarChart3, Search, Play,
-            Database, Download, Upload, AlertTriangle, UserCheck, Briefcase, Undo2, Edit
-        } from 'https://esm.sh/lucide-react@0.292.0';
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- ICONS MAPPING ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (iconRef.current) {
+                    iconRef.current.innerHTML = '';
+                    const iconElement = lucide.createElement(lucide.icons[name]);
+                    iconElement.setAttribute('width', size);
+                    iconElement.setAttribute('height', size);
+                    if(className) iconElement.setAttribute('class', className);
+                    iconRef.current.appendChild(iconElement);
+                }
+            }, [name, size, className]);
+            return <span ref={iconRef} className={`inline-flex items-center justify-center ${className}`}></span>;
+        };
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
-        function App() {
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
             const [activeMenu, setActiveMenu] = useState('chick-in');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-            const [toasts, setToasts] = useState([]);
             const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'success' });
+            const [toasts, setToasts] = useState([]);
             
-            const [isSearchOpen, setIsSearchOpen] = useState(false);
-            const [searchQuery, setSearchQuery] = useState('');
-            const searchInputRef = useRef(null);
-            
-            const [teams, setTeams] = useState([
-                { id: 't1', name: 'Agus - Budi', ppl: 'Agus', penimbang: 'Budi' },
-                { id: 't2', name: 'Cipto - Doni', ppl: 'Cipto', penimbang: 'Doni' }
-            ]);
-            const [batches, setBatches] = useState([]); 
-            const [documents, setDocuments] = useState([]); 
-            
+            // Database States
+            const [teams, setTeams] = useState([]);
+            const [batches, setBatches] = useState([]);
+            const [documents, setDocuments] = useState([]);
+
+            // Global Search State
+            const [globalSearch, setGlobalSearch] = useState('');
+            const [showSearchBox, setShowSearchBox] = useState(false);
+
             const addToast = (message, type = 'success') => {
                 const id = generateId();
                 setToasts(prev => [...prev, { id, message, type }]);
@@ -63,31 +94,22 @@
 
             const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
-            const getTeamName = (id) => teams.find(t => t.id === id)?.name || 'Tim Dihapus';
-            const getBatchName = (id) => batches.find(b => b.id === id)?.name || 'Kandang Tidak Diketahui';
-
+            // --- GLOBAL SEARCH LOGIC ---
             const searchResults = useMemo(() => {
-                if (!searchQuery.trim()) return [];
-                return documents.filter(d => d.number.includes(searchQuery)).slice(0, 10);
-            }, [searchQuery, documents]);
-
-            // --- KOMPONEN SIDEBAR ITEM ---
-            const NavItem = ({ id, label, icon: Icon }) => {
-                const isActive = activeMenu === id;
-                return (
-                    <button
-                        onClick={() => { setActiveMenu(id); closeMobileMenu(); }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
-                            isActive 
-                                ? 'bg-emerald-50 text-emerald-600 font-semibold' 
-                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                    >
-                        <Icon size={18} className={isActive ? "text-emerald-600" : "text-slate-400"} />
-                        <span>{label}</span>
-                    </button>
-                );
-            };
+                if (!globalSearch.trim()) return [];
+                const keyword = globalSearch.trim().toLowerCase();
+                const matchedDocs = documents.filter(d => d.number.includes(keyword)).slice(0, 10);
+                
+                return matchedDocs.map(doc => {
+                    const team = teams.find(t => t.id === doc.teamId);
+                    const batch = batches.find(b => b.id === doc.batchId);
+                    return {
+                        ...doc,
+                        teamName: team ? team.name : 'Unknown Team',
+                        batchName: batch ? batch.name : null
+                    };
+                });
+            }, [globalSearch, documents, teams, batches]);
 
             // --- VIEW: MASTER TIM ---
             const MasterTimView = () => {
@@ -97,137 +119,107 @@
 
                 const handleAddTeam = (e) => {
                     e.preventDefault();
-                    if (!pplName.trim() || !penimbangName.trim()) {
-                        fireAlert('Validasi Gagal', 'Nama PPL dan Penimbang wajib diisi keduanya.', 'error'); return;
-                    }
+                    if (!pplName.trim() || !penimbangName.trim()) return fireAlert('Validasi Gagal', 'Nama PPL dan Penimbang wajib diisi.', 'error');
                     const combinedName = `${pplName.trim()} - ${penimbangName.trim()}`;
-                    if (teams.some(t => t.name.toLowerCase() === combinedName.toLowerCase())) {
-                        fireAlert('Data Duplikat', 'Tim ini sudah terdaftar!', 'error'); return;
-                    }
+                    if (teams.some(t => t.name.toLowerCase() === combinedName.toLowerCase())) return fireAlert('Duplikat', 'Kombinasi tim ini sudah ada!', 'error');
                     setTeams([...teams, { id: generateId(), name: combinedName, ppl: pplName.trim(), penimbang: penimbangName.trim() }]);
-                    setPplName(''); setPenimbangName('');
-                    addToast('Tim berhasil ditambahkan!');
+                    setPplName(''); setPenimbangName(''); addToast(`Tim ditambahkan!`, 'success');
                 };
 
                 const handleDeleteTeam = (id) => {
-                    if (batches.some(b => b.teamId === id) || documents.some(d => d.teamId === id)) {
-                        fireAlert('Ditolak', 'Tim sedang terikat pada data kandang/dokumen.', 'error'); return;
-                    }
-                    setTeams(teams.filter(t => t.id !== id));
-                    addToast('Tim dihapus');
+                    if (batches.some(b => b.teamId === id) || documents.some(d => d.teamId === id)) return fireAlert('Akses Ditolak', 'Tim ini sedang digunakan pada data lain.', 'error');
+                    setTeams(teams.filter(t => t.id !== id)); addToast('Tim dihapus', 'success');
                 };
 
                 const handleUpdateTeam = (e) => {
                     e.preventDefault();
-                    if (!editModal.ppl.trim() || !editModal.penimbang.trim()) {
-                        fireAlert('Validasi', 'Nama wajib diisi.', 'error'); return;
-                    }
+                    if (!editModal.ppl.trim() || !editModal.penimbang.trim()) return fireAlert('Validasi Gagal', 'Semua kolom wajib diisi.', 'error');
                     const combinedName = `${editModal.ppl.trim()} - ${editModal.penimbang.trim()}`;
                     setTeams(teams.map(t => t.id === editModal.id ? { ...t, name: combinedName, ppl: editModal.ppl.trim(), penimbang: editModal.penimbang.trim() } : t));
-                    setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' });
-                    addToast('Data tim diperbarui!');
+                    setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' }); addToast('Tim diperbarui!', 'success');
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 fade-in">
-                        <div className="mb-6">
+                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
+                        <div>
                             <h2 className="text-2xl font-bold text-slate-800">Master Data Tim</h2>
-                            <p className="text-slate-500 text-sm mt-1">Kelola daftar personel PPL dan Penimbang.</p>
+                            <p className="text-slate-500 text-sm mt-1">Kelola daftar PPL dan Penimbang.</p>
                         </div>
 
-                        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-                            <form onSubmit={handleAddTeam} className="flex flex-col gap-4">
-                                <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
-                                    <div className="w-full flex-1">
-                                        <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Nama PPL</label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Briefcase size={16} className="text-slate-400" /></div>
-                                            <input type="text" value={pplName} onChange={(e) => setPplName(e.target.value)} placeholder="Ketik nama PPL" className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none text-slate-700" />
-                                        </div>
-                                    </div>
-                                    <div className="w-full flex-1">
-                                        <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Nama Penimbang</label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><UserCheck size={16} className="text-slate-400" /></div>
-                                            <input type="text" value={penimbangName} onChange={(e) => setPenimbangName(e.target.value)} placeholder="Ketik nama Penimbang" className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white outline-none text-slate-700" />
-                                        </div>
-                                    </div>
-                                    <button type="submit" className="w-full md:w-auto bg-slate-800 text-white px-6 py-2.5 rounded-lg hover:bg-slate-900 text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
-                                        <PlusCircle size={16} /> Tambah Tim
-                                    </button>
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <form onSubmit={handleAddTeam} className="flex flex-col md:flex-row items-center gap-4">
+                                <div className="w-full flex-1">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Nama PPL</label>
+                                    <input type="text" value={pplName} onChange={e => setPplName(e.target.value)} placeholder="Nama PPL..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                                </div>
+                                <div className="hidden md:block text-slate-300 font-bold mt-4">-</div>
+                                <div className="w-full flex-1">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Nama Penimbang</label>
+                                    <input type="text" value={penimbangName} onChange={e => setPenimbangName(e.target.value)} placeholder="Nama Penimbang..." className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+                                </div>
+                                <div className="w-full md:w-auto mt-2 md:mt-5">
+                                    <button type="submit" className="w-full bg-slate-800 text-white px-6 py-3 rounded-xl hover:bg-slate-900 font-bold transition-all text-sm flex items-center justify-center gap-2"><Icon name="PlusCircle" size={18}/> Tambah</button>
                                 </div>
                             </form>
+                            {(pplName || penimbangName) && (
+                                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-sm flex items-center gap-2">
+                                    <span className="text-emerald-600 font-semibold uppercase text-xs">Preview Tim: </span>
+                                    <strong className="text-slate-800 text-base">{pplName || 'PPL'} - {penimbangName || 'Penimbang'}</strong>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm border-collapse min-w-[500px]">
-                                    <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
-                                            <th className="px-6 py-3.5">Profil Tim (PPL - Penimbang)</th>
-                                            <th className="px-6 py-3.5 text-right">Aksi</th>
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse min-w-[500px]">
+                                <thead>
+                                    <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider">
+                                        <th className="px-6 py-4 font-semibold">Nama Tim</th>
+                                        <th className="px-6 py-4 font-semibold">Struktur</th>
+                                        <th className="px-6 py-4 font-semibold text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {teams.length === 0 ? (
+                                        <tr><td colSpan="3" className="px-6 py-10 text-center text-slate-400">Belum ada tim terdaftar.</td></tr>
+                                    ) : teams.map(team => (
+                                        <tr key={team.id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="px-6 py-4 font-bold text-slate-700">{team.name}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex gap-2">
+                                                    <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-1 rounded-md border border-sky-100 font-semibold flex items-center gap-1"><Icon name="Briefcase" size={10}/> PPL: {team.ppl}</span>
+                                                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md border border-indigo-100 font-semibold flex items-center gap-1"><Icon name="UserCheck" size={10}/> P: {team.penimbang}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button onClick={() => setEditModal({ isOpen: true, ...team })} className="text-slate-400 hover:text-indigo-600 p-2 opacity-0 group-hover:opacity-100 transition-all"><Icon name="Edit" size={18} /></button>
+                                                <button onClick={() => handleDeleteTeam(team.id)} className="text-slate-400 hover:text-red-600 p-2 opacity-0 group-hover:opacity-100 transition-all"><Icon name="Trash2" size={18} /></button>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {teams.length === 0 ? (
-                                           <tr><td colSpan="2" className="p-8 text-center text-slate-400">Belum ada tim terdaftar.</td></tr>
-                                        ) : (
-                                            teams.map(team => (
-                                                <tr key={team.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold shrink-0 border border-emerald-100">
-                                                                {team.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                            <div>
-                                                                <h3 className="font-bold text-slate-700">{team.name}</h3>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-medium">{team.ppl || '-'}</span>
-                                                                    <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-medium">{team.penimbang || '-'}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button onClick={() => setEditModal({ isOpen: true, id: team.id, ppl: team.ppl || '', penimbang: team.penimbang || '' })} className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors" title="Edit">
-                                                                <Edit size={16} />
-                                                            </button>
-                                                            <button onClick={() => handleDeleteTeam(team.id)} className="text-slate-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors" title="Hapus">
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
 
-                        {/* Modal Edit */}
+                        {/* Edit Modal */}
                         {editModal.isOpen && (
                             <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 fade-in">
-                                <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
-                                    <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                                        <h3 className="font-bold text-lg text-slate-800">Edit Data Tim</h3>
-                                        <button onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="text-slate-400 hover:text-slate-700"><X size={20}/></button>
+                                <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Icon name="Edit" size={20} className="text-indigo-600"/> Edit Tim</h3>
+                                        <button onClick={() => setEditModal({isOpen:false})} className="text-slate-400 hover:text-slate-700"><Icon name="X" size={20}/></button>
                                     </div>
-                                    <form onSubmit={handleUpdateTeam}>
-                                        <div className="p-5 space-y-4">
-                                            <div>
-                                                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Nama PPL</label>
-                                                <input type="text" value={editModal.ppl} onChange={(e) => setEditModal({...editModal, ppl: e.target.value})} className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Nama Penimbang</label>
-                                                <input type="text" value={editModal.penimbang} onChange={(e) => setEditModal({...editModal, penimbang: e.target.value})} className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            </div>
+                                    <form onSubmit={handleUpdateTeam} className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-semibold text-slate-500 block mb-1">Nama PPL</label>
+                                            <input type="text" value={editModal.ppl} onChange={e => setEditModal({...editModal, ppl: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
                                         </div>
-                                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                                            <button type="button" onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100">Batal</button>
-                                            <button type="submit" className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">Simpan</button>
+                                        <div>
+                                            <label className="text-xs font-semibold text-slate-500 block mb-1">Nama Penimbang</label>
+                                            <input type="text" value={editModal.penimbang} onChange={e => setEditModal({...editModal, penimbang: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                                        </div>
+                                        <div className="flex gap-3 justify-end mt-6">
+                                            <button type="button" onClick={() => setEditModal({isOpen:false})} className="px-5 py-2.5 text-slate-600 bg-slate-100 rounded-xl font-semibold hover:bg-slate-200">Batal</button>
+                                            <button type="submit" className="px-5 py-2.5 text-white bg-indigo-600 rounded-xl font-bold shadow-md hover:bg-indigo-700">Simpan Perubahan</button>
                                         </div>
                                     </form>
                                 </div>
@@ -240,15 +232,16 @@
             // --- VIEW: DATABASE BACKUP ---
             const DatabaseView = () => {
                 const fileInputRef = useRef(null);
+                const [restoreModal, setRestoreModal] = useState({ isOpen: false, data: null });
+                const [resetModal, setResetModal] = useState({ isOpen: false, keyword: '' });
 
                 const handleBackup = () => {
                     const data = { version: '2.0', timestamp: new Date().toISOString(), teams, batches, documents };
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = `backup_btpa_${new Date().toISOString().slice(0,10)}.json`;
+                    const a = document.createElement('a'); a.href = url; a.download = `backup_btpa.json`;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                    fireAlert('Sukses', 'File backup berhasil diunduh.', 'success');
+                    addToast('File backup diunduh!', 'success');
                 };
 
                 const handleFileChange = (e) => {
@@ -258,403 +251,469 @@
                         try {
                             const data = JSON.parse(event.target.result);
                             if (data.teams && data.batches && data.documents) {
-                                if(window.confirm("PERINGATAN: Memulihkan data akan menghapus data yang ada. Lanjutkan?")) {
-                                    setTeams(data.teams); setBatches(data.batches); setDocuments(data.documents);
-                                    fireAlert('Berhasil', 'Sistem berhasil dipulihkan!', 'success');
-                                }
-                            } else fireAlert('Gagal', 'Format file backup tidak valid!', 'error');
-                        } catch (error) { fireAlert('Gagal', 'Gagal membaca file json.', 'error'); }
+                                setRestoreModal({ isOpen: true, data: data });
+                            } else { fireAlert('Format Salah', 'File backup tidak valid.', 'error'); }
+                        } catch (error) { fireAlert('Error', 'Gagal membaca file JSON.', 'error'); }
                     };
                     reader.readAsText(file); e.target.value = null;
                 };
 
-                const handleResetData = () => {
-                    const ans = window.prompt("Ketik 'HAPUS' untuk mengonfirmasi penghapusan seluruh data:");
-                    if(ans === 'HAPUS') {
-                        setTeams([]); setBatches([]); setDocuments([]);
-                        fireAlert('Sistem Bersih', 'Semua data telah dikosongkan.', 'success');
-                    } else if(ans !== null) addToast('Kata kunci salah.', 'error');
-                }
-
                 return (
                     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 fade-in">
-                        <div className="mb-6">
+                        <div>
                             <h2 className="text-2xl font-bold text-slate-800">Backup & Restore</h2>
-                            <p className="text-slate-500 text-sm mt-1">Simpan cadangan data dan pulihkan sistem.</p>
+                            <p className="text-slate-500 text-sm mt-1">Amankan data sistem atau pulihkan dari file cadangan.</p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center hover:border-emerald-300 transition-colors">
-                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3"><Download size={24} /></div>
-                                <h3 className="text-lg font-bold text-slate-800">Backup Data</h3>
-                                <p className="text-slate-500 text-xs mt-1 mb-4">Unduh data ke komputer format .json.</p>
-                                <button onClick={handleBackup} className="w-full bg-emerald-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-emerald-600">Unduh File</button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Download" size={32}/></div>
+                                <h3 className="font-bold text-lg mb-1">Backup Data</h3>
+                                <p className="text-sm text-slate-500 mb-6">Unduh data ke komputer format .json.</p>
+                                <button onClick={handleBackup} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-emerald-700">Unduh File</button>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center hover:border-amber-300 transition-colors">
-                                <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3"><Upload size={24} /></div>
-                                <h3 className="text-lg font-bold text-slate-800">Restore Data</h3>
-                                <p className="text-slate-500 text-xs mt-1 mb-4">Pulihkan dari file. Akan menimpa data.</p>
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+                                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Upload" size={32}/></div>
+                                <h3 className="font-bold text-lg mb-1">Restore Data</h3>
+                                <p className="text-sm text-slate-500 mb-6">Pulihkan dari file. Akan menimpa data.</p>
                                 <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                                <button onClick={() => fileInputRef.current?.click()} className="w-full bg-amber-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-amber-600">Pilih File</button>
+                                <button onClick={() => fileInputRef.current?.click()} className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-amber-700">Pilih File</button>
                             </div>
                         </div>
 
-                        <div className="mt-8 pt-6 border-t border-slate-200">
-                            <div className="bg-red-50 p-5 rounded-2xl border border-red-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                <div>
-                                    <h3 className="text-sm font-bold text-red-800 flex items-center gap-2"><AlertTriangle size={18} /> Reset Sistem</h3>
-                                    <p className="text-red-600/80 text-xs mt-1">Hapus seluruh data secara permanen.</p>
-                                </div>
-                                <button onClick={handleResetData} className="w-full sm:w-auto px-5 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 shrink-0">Kosongkan Data</button>
+                        <div className="mt-8 bg-red-50 p-6 rounded-2xl border border-red-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h3 className="font-bold text-red-800 flex items-center gap-2"><Icon name="AlertTriangle" size={20}/> Reset Sistem</h3>
+                                <p className="text-xs text-red-600 mt-1">Hapus seluruh data secara permanen.</p>
                             </div>
+                            <button onClick={() => setResetModal({isOpen: true, keyword:''})} className="w-full md:w-auto bg-red-800 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-red-900 whitespace-nowrap">Kosongkan Data</button>
                         </div>
+
+                        {/* Modals Custom for DB */}
+                        {restoreModal.isOpen && (
+                            <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-xl">
+                                    <div className="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="AlertTriangle" size={32} /></div>
+                                    <h3 className="text-xl font-bold mb-2 text-slate-800">Timpa Data?</h3>
+                                    <p className="text-sm text-slate-500 mb-6">Seluruh data saat ini akan terhapus dan diganti dengan data dari file backup.</p>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setRestoreModal({isOpen:false})} className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-600">Batal</button>
+                                        <button onClick={() => { setTeams(restoreModal.data.teams); setBatches(restoreModal.data.batches); setDocuments(restoreModal.data.documents); setRestoreModal({isOpen:false}); addToast('Data berhasil dipulihkan', 'success'); }} className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-md">Ya, Pulihkan</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {resetModal.isOpen && (
+                            <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-xl border-t-4 border-red-600">
+                                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash2" size={32} /></div>
+                                    <h3 className="text-xl font-bold mb-2 text-slate-800">Hapus Permanen?</h3>
+                                    <p className="text-sm text-slate-500 mb-4">Ketik <strong className="text-red-600">HAPUS</strong> untuk setuju mengosongkan seluruh data.</p>
+                                    <input type="text" value={resetModal.keyword} onChange={e => setResetModal({...resetModal, keyword: e.target.value.toUpperCase()})} className="w-full border-2 border-red-200 rounded-xl p-3 text-center font-bold tracking-widest mb-6 focus:outline-none focus:border-red-500" placeholder="Ketik HAPUS..." />
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setResetModal({isOpen:false})} className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-600">Batal</button>
+                                        <button onClick={() => { if(resetModal.keyword==='HAPUS') { setTeams([]); setBatches([]); setDocuments([]); setResetModal({isOpen:false}); addToast('Sistem di-reset', 'success'); } else { fireAlert('Gagal','Kata kunci salah','error') } }} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md disabled:opacity-50" disabled={resetModal.keyword!=='HAPUS'}>Reset Total</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             };
 
-            // --- VIEW: TAMBAH STOK LACI ---
+            // --- VIEW: INPUT LACI ADMIN ---
             const InputLaciView = () => {
                 const [teamId, setTeamId] = useState('');
                 const [ranges, setRanges] = useState([{ from: '', to: '' }]);
-                const [isGenerating, setIsGenerating] = useState(false);
+                const [previewNumbers, setPreviewNumbers] = useState([]);
 
-                const totalGeneratedDocs = ranges.reduce((acc, range) => {
-                    const from = parseInt(range.from); const to = parseInt(range.to);
-                    if (!isNaN(from) && !isNaN(to) && from <= to) return acc + (to - from + 1); return acc;
-                }, 0);
-
-                const previewNumbers = useMemo(() => {
+                useEffect(() => {
                     let nums = [];
-                    for (const range of ranges) {
-                        const from = parseInt(range.from); const to = parseInt(range.to);
-                        if (!isNaN(from) && !isNaN(to) && from <= to) {
-                            for (let i = from; i <= to; i++) { nums.push(i.toString()); if(nums.length >= 100) break; }
+                    for (const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if (!isNaN(f) && !isNaN(t) && f <= t) {
+                            for (let i = f; i <= t; i++) { nums.push(i.toString()); if(nums.length >= 100) break; }
                         }
                         if(nums.length >= 100) break;
                     }
-                    return nums;
+                    setPreviewNumbers(nums);
                 }, [ranges]);
 
                 const conflictError = useMemo(() => {
                     if (!teamId) return null;
-                    for (const range of ranges) {
-                        const from = parseInt(range.from); const to = parseInt(range.to);
-                        if (isNaN(from) || isNaN(to) || from > to) continue;
-                        for (let i = from; i <= to; i++) {
-                            const numStr = i.toString();
-                            const existing = documents.find(d => d.number === numStr);
-                            if (existing && existing.teamId !== teamId) {
-                                return { number: numStr, owner: teams.find(t => t.id === existing.teamId)?.name || 'Tim Lain' };
-                            }
+                    for (const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if (isNaN(f) || isNaN(t) || f > t) continue;
+                        for (let i = f; i <= t; i++) {
+                            const exist = documents.find(d => d.number === i.toString());
+                            if (exist && exist.teamId !== teamId) return { number: i.toString(), owner: teams.find(x=>x.id===exist.teamId)?.name || 'Tim Lain' };
                         }
                     }
                     return null;
                 }, [ranges, documents, teamId, teams]);
 
-                const handleGenerate = () => {
-                    if (!teamId) return fireAlert('Peringatan', 'Pilih tim penerima stok terlebih dahulu.', 'error');
+                const totalDocs = ranges.reduce((acc, r) => {
+                    const f = parseInt(r.from); const t = parseInt(r.to);
+                    if (!isNaN(f) && !isNaN(t) && f <= t) return acc + (t - f + 1);
+                    return acc;
+                }, 0);
+
+                const handleSave = () => {
+                    if (!teamId) return fireAlert('Gagal', 'Pilih tim penerima stok laci!', 'error');
                     if (conflictError) return;
-                    setIsGenerating(true);
-                    setTimeout(() => {
-                        let newDocs = [];
-                        for (const range of ranges) {
-                            const from = parseInt(range.from); const to = parseInt(range.to);
-                            if (isNaN(from) || isNaN(to) || from > to) continue;
-                            for (let i = from; i <= to; i++) {
-                                const numStr = i.toString();
-                                if (!documents.some(d => d.number === numStr && d.teamId === teamId)) {
-                                    newDocs.push({ id: generateId(), batchId: null, teamId, number: numStr, status: 'DI_ADMIN' });
-                                }
+                    
+                    let newDocs = [];
+                    for (const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if (isNaN(f) || isNaN(t) || f > t) continue;
+                        for (let i = f; i <= t; i++) {
+                            const num = i.toString();
+                            if (!documents.some(d => d.number === num && d.teamId === teamId)) {
+                                newDocs.push({ id: generateId(), batchId: null, teamId, number: num, status: 'DI_ADMIN' });
                             }
                         }
-                        if (newDocs.length === 0) { setIsGenerating(false); return fireAlert('Gagal', 'Nomor tidak valid/sudah ada.', 'error'); }
-                        setDocuments([...documents, ...newDocs]);
-                        fireAlert('Stok Disimpan', `${newDocs.length} dokumen masuk Laci Admin tim terkait.`, 'success');
-                        setTeamId(''); setRanges([{ from: '', to: '' }]); setIsGenerating(false);
-                    }, 100);
+                    }
+                    if(newDocs.length === 0) return fireAlert('Gagal', 'Nomor tidak valid / sudah ada di laci tim ini.', 'error');
+                    setDocuments([...documents, ...newDocs]);
+                    fireAlert('Sukses', `${newDocs.length} dokumen dimasukkan ke Laci.`, 'success');
+                    setRanges([{from:'', to:''}]); setTeamId('');
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 fade-in">
-                        <div className="mb-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Tambah Stok Laci</h2>
-                            <p className="text-slate-500 text-sm mt-1">Masukkan dokumen baru langsung ke gudang tanpa ke kandang.</p>
-                        </div>
-
-                        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-                            <div className="mb-5">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Pilih Tim Pemilik</label>
-                                <select className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-slate-700" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
+                        <div><h2 className="text-2xl font-bold text-slate-800">Tambah Stok Laci</h2><p className="text-sm text-slate-500 mt-1">Masukkan dokumen BTPA baru langsung ke gudang tanpa kandang.</p></div>
+                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tim Pemilik Stok Laci</label>
+                                <select className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-semibold text-slate-700" value={teamId} onChange={e => setTeamId(e.target.value)}>
                                     <option value="">-- Pilih Tim --</option>
                                     {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                             </div>
-
                             <div className="space-y-3">
-                                {ranges.map((range, idx) => {
-                                    const fromVal = parseInt(range.from); const toVal = parseInt(range.to);
-                                    const rangeCount = (!isNaN(fromVal) && !isNaN(toVal) && fromVal <= toVal) ? (toVal - fromVal + 1) : 0;
-                                    return (
-                                        <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-end gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                            <div className="w-full sm:flex-1">
-                                                <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Mulai</label>
-                                                <input type="number" placeholder="Misal: 1001" className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-amber-500 outline-none font-mono" value={range.from} onChange={(e) => { const r = [...ranges]; r[idx].from = e.target.value; setRanges(r); }} />
-                                            </div>
-                                            <div className="w-full sm:flex-1">
-                                                <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Sampai</label>
-                                                <input type="number" placeholder="Misal: 1005" className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-amber-500 outline-none font-mono" value={range.to} onChange={(e) => { const r = [...ranges]; r[idx].to = e.target.value; setRanges(r); }} />
-                                            </div>
-                                            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2 mt-1 sm:mt-0">
-                                                <span className={`text-xs font-semibold px-2 py-1.5 rounded-md ${rangeCount > 0 ? 'bg-amber-100 text-amber-700' : 'text-slate-400'}`}>{rangeCount} lembar</span>
-                                                <button onClick={() => { if(ranges.length > 1) setRanges(ranges.filter((_, i) => i !== idx)) }} disabled={ranges.length === 1} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md disabled:opacity-30"><Trash2 size={16}/></button>
-                                            </div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Rentang Nomor</label>
+                                {ranges.map((r, idx) => (
+                                    <div key={idx} className="flex flex-col md:flex-row gap-3 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Mulai Nomor</label>
+                                            <input type="number" placeholder="Contoh: 1001" value={r.from} onChange={e => {const n=[...ranges]; n[idx].from=e.target.value; setRanges(n)}} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700" />
                                         </div>
-                                    )
-                                })}
-                                <button onClick={() => setRanges([...ranges, { from: '', to: '' }])} className="text-sm font-medium text-amber-600 flex items-center gap-1 hover:text-amber-700 py-2"><PlusCircle size={16}/> Tambah Baris Rentang</button>
+                                        <div className="hidden md:block text-slate-300 font-bold text-xl mt-6">-</div>
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Sampai Nomor</label>
+                                            <input type="number" placeholder="Contoh: 1050" value={r.to} onChange={e => {const n=[...ranges]; n[idx].to=e.target.value; setRanges(n)}} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700" />
+                                        </div>
+                                        <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-3 mt-2 md:mt-6">
+                                            {r.from && r.to && !isNaN(r.from) && !isNaN(r.to) && parseInt(r.to) >= parseInt(r.from) ? 
+                                                <span className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs font-bold border border-amber-200">{parseInt(r.to) - parseInt(r.from) + 1} Lembar</span> : 
+                                                <span className="text-xs text-slate-400 px-3 py-2">0 Lembar</span>
+                                            }
+                                            <button onClick={() => setRanges(ranges.filter((_,i)=>i!==idx))} disabled={ranges.length===1} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl disabled:opacity-30 transition-all"><Icon name="Trash2" size={20}/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button onClick={()=>setRanges([...ranges, {from:'',to:''}])} className="mt-2 w-full md:w-auto px-6 py-3 border-2 border-dashed border-amber-200 text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-all flex items-center justify-center gap-2 text-sm"><Icon name="PlusCircle" size={18}/> Tambah Baris Rentang Lainnya</button>
                             </div>
-
+                            
                             {conflictError && (
-                                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                                    <AlertTriangle size={16} className="text-red-500 mt-0.5" />
-                                    <div><p className="font-semibold text-red-700 text-sm">Akses Ditolak Lintas Tim</p><p className="text-xs text-red-600">Nomor #{conflictError.number} sudah menjadi milik {conflictError.owner}.</p></div>
+                                <div className="p-5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                                    <Icon name="AlertTriangle" size={24} className="text-red-600 mt-1 shrink-0"/>
+                                    <div>
+                                        <p className="text-red-800 font-bold text-lg">Akses Ditolak Lintas Tim!</p>
+                                        <p className="text-red-600 text-sm mt-1">Nomor <strong className="font-mono bg-red-200 px-1 rounded">#{conflictError.number}</strong> sudah dipakai oleh <strong className="uppercase bg-red-600 text-white px-2 py-0.5 rounded text-xs ml-1">{conflictError.owner}</strong></p>
+                                    </div>
                                 </div>
                             )}
 
                             {previewNumbers.length > 0 && !conflictError && (
-                                <div className="mt-4 bg-slate-50 border border-slate-100 rounded-lg p-3">
-                                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Preview Nomor (Max 100):</p>
-                                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
-                                        {previewNumbers.map(n => <span key={n} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-xs font-mono text-slate-600">#{n}</span>)}
-                                        {totalGeneratedDocs > 100 && <span className="text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">+{totalGeneratedDocs - 100} lagi</span>}
+                                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Preview (Live)</p>
+                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                        {previewNumbers.map(n => <span key={n} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-mono font-semibold text-slate-600 shadow-sm">#{n}</span>)}
+                                        {totalDocs > 100 && <span className="px-3 py-1.5 bg-slate-200 rounded-lg text-sm font-bold text-slate-600">+{totalDocs - 100} lainnya...</span>}
                                     </div>
                                 </div>
                             )}
 
-                            {totalGeneratedDocs > 0 && !conflictError && (
-                                <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-slate-100 pt-5">
-                                    <div className="text-sm">
-                                        <span className="text-slate-500">Total Generate: </span>
-                                        <span className="font-bold text-amber-600">{totalGeneratedDocs} Lembar</span>
-                                    </div>
-                                    <button onClick={handleGenerate} disabled={isGenerating || !teamId} className="w-full sm:w-auto bg-amber-500 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                                        {isGenerating ? <RefreshCw size={16} className="animate-spin"/> : <Archive size={16}/>} Simpan ke Laci
-                                    </button>
+                            <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="text-center md:text-left">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Generate</p>
+                                    <p className="text-3xl font-black text-slate-800">{totalDocs} <span className="text-sm font-semibold text-slate-500">Lembar</span></p>
                                 </div>
-                            )}
+                                <button onClick={handleSave} disabled={!!conflictError || totalDocs===0} className="w-full md:w-auto bg-amber-500 text-white px-10 py-4 rounded-xl font-bold shadow-lg shadow-amber-200 disabled:opacity-50 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"><Icon name="Archive" size={20}/> Simpan ke Laci</button>
+                            </div>
                         </div>
                     </div>
                 );
             };
 
-            // --- VIEW: CHICK-IN (INPUT KANDANG) ---
+            // --- VIEW: CHICK IN (Input Kandang & Alokasi) ---
             const ChickInView = () => {
                 const [formData, setFormData] = useState({ teamId: '', date: '', name: '', population: '' });
                 const [ranges, setRanges] = useState([{ from: '', to: '' }]);
-                const [isGenerating, setIsGenerating] = useState(false);
-                const [usedDrawerDocs, setUsedDrawerDocs] = useState(new Set());
+                const [previewNumbers, setPreviewNumbers] = useState([]);
+                const [clickedLaciItems, setClickedLaciItems] = useState(new Set()); // Track items moved to ranges
 
-                const populationNum = parseInt(formData.population) || 0;
-                const estimatedDocs = Math.ceil(populationNum / 1000);
+                const estimatedDocs = Math.ceil((parseInt(formData.population)||0) / 1000);
+                
+                // Fetch drawer/penimbang docs safely
+                const availableDocs = useMemo(() => {
+                    if(!formData.teamId || documents.length === 0) return { adminDocs: [], adminGroups: [], penimDocs: [], penimGroups: [] };
+                    
+                    const tDocs = documents.filter(d => d.teamId === formData.teamId).sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+                    const aDocs = tDocs.filter(d => d.status === 'DI_ADMIN');
+                    const pDocs = tDocs.filter(d => d.status === 'DI_PENIMBANG');
 
-                const drawerAnalysis = useMemo(() => {
-                    if (!formData.teamId) return { docs: [], groups: [] };
-                    const dDocs = documents.filter(d => d.teamId === formData.teamId && d.status === 'DI_ADMIN').sort((a,b) => parseInt(a.number) - parseInt(b.number));
-                    let groups = [];
-                    if (dDocs.length > 0) {
-                        let cur = [dDocs[0]];
-                        for (let i = 1; i < dDocs.length; i++) {
-                            if (parseInt(dDocs[i].number) === parseInt(dDocs[i-1].number) + 1) cur.push(dDocs[i]);
-                            else { if (cur.length > 1) groups.push([...cur]); cur = [dDocs[i]]; }
+                    const groupDocs = (docArray) => {
+                        let groups = [];
+                        if(docArray && docArray.length > 0) {
+                            let curr = [docArray[0]];
+                            for(let i=1; i<docArray.length; i++) {
+                                if(parseInt(docArray[i].number) === parseInt(docArray[i-1].number)+1) curr.push(docArray[i]);
+                                else { if(curr.length > 1) groups.push(curr); curr = [docArray[i]]; }
+                            }
+                            if(curr.length > 1) groups.push(curr);
                         }
-                        if (cur.length > 1) groups.push(cur);
-                    }
-                    return { docs: dDocs, groups };
+                        return groups;
+                    };
+                    
+                    return { 
+                        adminDocs: aDocs, adminGroups: groupDocs(aDocs), 
+                        penimDocs: pDocs, penimGroups: groupDocs(pDocs) 
+                    };
                 }, [documents, formData.teamId]);
 
-                const totalGeneratedDocs = ranges.reduce((acc, range) => {
-                    const from = parseInt(range.from); const to = parseInt(range.to);
-                    if (!isNaN(from) && !isNaN(to) && from <= to) return acc + (to - from + 1); return acc;
-                }, 0);
-
-                const previewNumbers = useMemo(() => {
+                useEffect(() => {
                     let nums = [];
-                    for (const range of ranges) {
-                        const from = parseInt(range.from); const to = parseInt(range.to);
-                        if (!isNaN(from) && !isNaN(to) && from <= to) {
-                            for (let i = from; i <= to; i++) { nums.push(i.toString()); if(nums.length >= 100) break; }
+                    for(const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if(!isNaN(f) && !isNaN(t) && f<=t) {
+                            for(let i=f; i<=t; i++) { nums.push(i.toString()); if(nums.length>=100) break; }
                         }
-                        if(nums.length >= 100) break;
+                        if(nums.length>=100) break;
                     }
-                    return nums;
+                    setPreviewNumbers(nums);
                 }, [ranges]);
 
                 const conflictError = useMemo(() => {
                     if (!formData.teamId) return null;
-                    for (const range of ranges) {
-                        const from = parseInt(range.from); const to = parseInt(range.to);
-                        if (isNaN(from) || isNaN(to) || from > to) continue;
-                        for (let i = from; i <= to; i++) {
-                            const numStr = i.toString();
-                            const existing = documents.find(d => d.number === numStr);
-                            if (existing && existing.teamId !== formData.teamId) {
-                                return { number: numStr, owner: teams.find(t => t.id === existing.teamId)?.name || 'Tim Lain' };
-                            }
+                    for (const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if (isNaN(f) || isNaN(t) || f > t) continue;
+                        for (let i = f; i <= t; i++) {
+                            const exist = documents.find(d => d.number === i.toString());
+                            if (exist && exist.teamId !== formData.teamId) return { number: i.toString(), owner: teams.find(x=>x.id===exist.teamId)?.name || 'Tim Lain' };
+                            if (exist && exist.status === 'DIALOKASIKAN') return { number: i.toString(), owner: 'Kandang Lain (Aktif)' };
                         }
                     }
                     return null;
                 }, [ranges, documents, formData.teamId, teams]);
 
-                const handleRangeChange = (idx, field, value) => {
-                    const r = [...ranges]; r[idx][field] = value; setRanges(r);
-                };
+                const totalDocs = ranges.reduce((acc, r) => {
+                    const f = parseInt(r.from); const t = parseInt(r.to);
+                    if (!isNaN(f) && !isNaN(t) && f <= t) return acc + (t - f + 1);
+                    return acc;
+                }, 0);
 
-                const injectFromLaci = (fromStr, toStr, sourceIdArr) => {
-                    let inserted = false;
-                    const r = [...ranges];
-                    for (let i = 0; i < r.length; i++) {
-                        if (!r[i].from && !r[i].to) { r[i] = { from: fromStr, to: toStr }; inserted = true; break; }
+                const handleLaciClick = (fromNum, toNum, idKey) => {
+                    if(clickedLaciItems.has(idKey)) return;
+                    const newRanges = [...ranges];
+                    let added = false;
+                    for(let i=0; i<newRanges.length; i++){
+                        if(!newRanges[i].from && !newRanges[i].to) {
+                            newRanges[i] = {from: fromNum, to: toNum}; added=true; break;
+                        }
                     }
-                    if (!inserted) r.push({ from: fromStr, to: toStr });
-                    setRanges(r);
-                    const used = new Set(usedDrawerDocs);
-                    sourceIdArr.forEach(id => used.add(id));
-                    setUsedDrawerDocs(used);
-                    addToast('Nomor laci dimasukkan ke form');
+                    if(!added) newRanges.push({from: fromNum, to: toNum});
+                    setRanges(newRanges);
+                    const newClicked = new Set(clickedLaciItems);
+                    newClicked.add(idKey);
+                    setClickedLaciItems(newClicked);
                 };
 
                 const handleGenerate = () => {
-                    if (!formData.teamId || !formData.date || !formData.name || !formData.population) return fireAlert('Peringatan', 'Lengkapi seluruh data kandang di panel kiri.', 'error');
-                    if (conflictError || totalGeneratedDocs === 0) return fireAlert('Peringatan', 'Periksa kembali rentang nomor BTPA.', 'error');
+                    if(!formData.teamId || !formData.date || !formData.name || !formData.population) return fireAlert('Validasi Gagal', 'Lengkapi seluruh data kandang di panel kiri!', 'error');
+                    if(conflictError || totalDocs===0) return;
                     
-                    setIsGenerating(true);
-                    setTimeout(() => {
-                        let numsToGen = [];
-                        for (const range of ranges) {
-                            const f = parseInt(range.from); const t = parseInt(range.to);
-                            if (isNaN(f) || isNaN(t) || f > t) continue;
-                            for (let i = f; i <= t; i++) numsToGen.push(i.toString());
+                    const batchId = generateId();
+                    const newBatch = { id: batchId, ...formData, status: 'AKTIF' };
+                    
+                    let newDocs = [...documents];
+                    for (const r of ranges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if(isNaN(f) || isNaN(t) || f>t) continue;
+                        for(let i=f; i<=t; i++) {
+                            const num = i.toString();
+                            const idx = newDocs.findIndex(d => d.number === num && d.teamId === formData.teamId);
+                            if(idx !== -1) newDocs[idx] = { ...newDocs[idx], batchId, status: 'DIALOKASIKAN', penimbangName: null };
+                            else newDocs.push({ id: generateId(), batchId, teamId: formData.teamId, number: num, status: 'DIALOKASIKAN' });
                         }
+                    }
+                    
+                    setBatches([...batches, newBatch]);
+                    setDocuments(newDocs);
+                    fireAlert('Berhasil!', `Kandang ${formData.name} berhasil didaftarkan.\n\n${totalDocs} dokumen BTPA telah dialokasikan dan siap digunakan di lapangan.`, 'success');
+                    setFormData({ teamId: '', date: '', name: '', population: '' });
+                    setRanges([{from:'', to:''}]);
+                    setClickedLaciItems(new Set());
+                };
 
-                        if (numsToGen.length > 20000) { setIsGenerating(false); return fireAlert('Limit', 'Maksimal 20.000 dokumen per kandang.', 'error'); }
-
-                        const batchId = generateId();
-                        const newBatch = { id: batchId, teamId: formData.teamId, date: formData.date, name: formData.name, population: populationNum, status: 'AKTIF' };
-                        const updatedDocs = [...documents];
-                        
-                        numsToGen.forEach(num => {
-                            const extIdx = updatedDocs.findIndex(d => d.number === num && d.teamId === formData.teamId && (d.status === 'DI_ADMIN' || d.status === 'DI_PENIMBANG'));
-                            if (extIdx !== -1) updatedDocs[extIdx] = { ...updatedDocs[extIdx], batchId, status: 'DIALOKASIKAN', penimbangName: null };
-                            else updatedDocs.push({ id: generateId(), batchId, teamId: formData.teamId, number: num, status: 'DIALOKASIKAN' });
-                        });
-
-                        setBatches([...batches, newBatch]); setDocuments(updatedDocs);
-                        fireAlert('Kandang Didaftarkan!', `Kandang ${formData.name} berjalan. ${numsToGen.length} dokumen dialokasikan.`, 'success');
-                        
-                        setFormData({ teamId: '', date: '', name: '', population: '' });
-                        setRanges([{ from: '', to: '' }]); setUsedDrawerDocs(new Set());
-                        setIsGenerating(false);
-                    }, 50);
+                const renderLaciBox = (title, docs, groups, isPenim = false) => {
+                    if(!docs || docs.length === 0) return null;
+                    const color = isPenim ? 'indigo' : 'amber';
+                    const iconName = isPenim ? 'UserCheck' : 'Inbox';
+                    
+                    return (
+                        <div className={`bg-${color}-50 border border-${color}-200 p-5 rounded-2xl`}>
+                            <h3 className={`text-sm font-bold text-${color}-800 mb-3 flex items-center gap-2`}><Icon name={iconName} size={18}/> {title} ({docs.length}):</h3>
+                            
+                            {groups && groups.length > 0 && (
+                                <div className="mb-4">
+                                    <p className={`text-[10px] font-bold text-${color}-600 uppercase tracking-widest mb-2`}>Grup (Tambahkan Sekaligus):</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {groups.map((g, i) => {
+                                            const idKey = `g_${g[0].number}_${g[g.length-1].number}`;
+                                            const clicked = clickedLaciItems.has(idKey) || (ranges.some(r => parseInt(r.from) <= parseInt(g[0].number) && parseInt(r.to) >= parseInt(g[g.length-1].number)));
+                                            return (
+                                                <button key={i} onClick={()=>handleLaciClick(g[0].number, g[g.length-1].number, idKey)} disabled={clicked} className={`px-4 py-2 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all ${clicked ? `bg-${color}-100/50 border-transparent text-${color}-400` : `bg-white border-${color}-300 text-${color}-700 hover:bg-${color}-100 shadow-sm active:scale-95`}`}>
+                                                    {clicked ? <Icon name="CheckCircle2" size={16}/> : <Icon name="ListOrdered" size={16}/>} #{g[0].number} - #{g[g.length-1].number}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div>
+                                <p className={`text-[10px] font-bold text-${color}-600 uppercase tracking-widest mb-2`}>Satuan (Pilih Satu per Satu):</p>
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                    {docs.map(d => {
+                                        const clicked = clickedLaciItems.has(`s_${d.number}`) || (ranges.some(r => parseInt(r.from) <= parseInt(d.number) && parseInt(r.to) >= parseInt(d.number)));
+                                        return (
+                                            <button key={d.id} onClick={()=>handleLaciClick(d.number, d.number, `s_${d.number}`)} disabled={clicked} className={`px-3 py-1.5 rounded-lg border font-mono font-semibold text-sm transition-all ${clicked ? `bg-${color}-100/50 border-transparent text-${color}-400 flex items-center gap-1` : `bg-white border-${color}-200 text-${color}-700 hover:bg-${color}-100 shadow-sm active:scale-95`}`}>
+                                                {clicked && <Icon name="CheckCircle2" size={12}/>} #{d.number}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    );
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 fade-in">
-                        {/* Kiri: Data Kandang */}
-                        <div className="w-full lg:w-[320px] shrink-0 space-y-6">
-                            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-                                <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">Data Kandang</h2>
-                                <div className="space-y-3">
-                                    <div><label className="text-xs font-semibold text-slate-500 mb-1 block">Tim</label><select className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none" value={formData.teamId} onChange={(e) => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'', to:''}]); setUsedDrawerDocs(new Set());}}><option value="">- Pilih Tim -</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
-                                    <div><label className="text-xs font-semibold text-slate-500 mb-1 block">Tanggal</label><input type="date" className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})}/></div>
-                                    <div><label className="text-xs font-semibold text-slate-500 mb-1 block">Nama Kandang</label><input type="text" placeholder="Misal: A1" className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
-                                    <div><label className="text-xs font-semibold text-slate-500 mb-1 block">Populasi</label><input type="number" placeholder="5000" className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none" value={formData.population} onChange={e => setFormData({...formData, population: e.target.value})}/></div>
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 fade-in">
+                        {/* Kiri: Form Kandang */}
+                        <div className="w-full lg:w-1/3 shrink-0 space-y-6">
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shadow-inner"><Icon name="PlusCircle" size={24}/></div>
+                                <div><h2 className="text-xl font-bold text-slate-800">1. Data Kandang</h2><p className="text-xs font-semibold text-slate-500">Informasi siklus panen baru</p></div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><Icon name="Users" size={14}/> Tim Pelaksana</label>
+                                    <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-semibold text-slate-700" value={formData.teamId} onChange={e => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'',to:''}]); setClickedLaciItems(new Set());}}>
+                                        <option value="">Pilih Tim...</option>
+                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
                                 </div>
-                                <div className="mt-5 p-4 bg-sky-50 border border-sky-100 rounded-xl flex justify-between items-center">
-                                    <div><p className="text-[10px] font-semibold text-sky-700 uppercase mb-0.5">Estimasi BTPA</p><p className="text-xl font-bold text-sky-600">{estimatedDocs} <span className="text-xs">lembar</span></p></div>
-                                    <BarChart3 size={24} className="text-sky-200"/>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><Icon name="Calendar" size={14}/> Tgl Chick-in</label>
+                                    <input type="date" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-semibold text-slate-700" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><Icon name="FileText" size={14}/> Nama Kandang</label>
+                                    <input type="text" placeholder="Misal: Kandang A1" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-semibold text-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1"><Icon name="Hash" size={14}/> Populasi</label>
+                                    <input type="number" placeholder="Misal: 5000" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-semibold text-slate-700" value={formData.population} onChange={e => setFormData({...formData, population: e.target.value})} />
+                                </div>
+                                <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-sky-700 uppercase tracking-widest">Estimasi Dokumen</p>
+                                        <p className="text-2xl font-black text-sky-600">{estimatedDocs} <span className="text-xs font-semibold">lembar</span></p>
+                                    </div>
+                                    <Icon name="BarChart3" size={24} className="text-sky-300"/>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Kanan: Alokasi Nomor */}
+                        {/* Kanan: Alokasi */}
                         <div className="flex-1 space-y-6">
-                            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-                                <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">Alokasi Nomor</h2>
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shadow-inner"><Icon name="FileText" size={24}/></div>
+                                <div><h2 className="text-xl font-bold text-slate-800">2. Alokasi Nomor BTPA</h2><p className="text-xs font-semibold text-slate-500">Rentang dokumen untuk kandang ini</p></div>
+                            </div>
+                            
+                            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                                 
-                                {drawerAnalysis.docs.length > 0 && (
-                                    <div className="p-4 mb-5 bg-amber-50/50 border border-amber-100 rounded-xl">
-                                        <p className="text-xs font-bold text-amber-800 mb-3 flex items-center gap-1.5"><Inbox size={14}/> Sisa Laci ({drawerAnalysis.docs.length}):</p>
-                                        
-                                        {drawerAnalysis.groups.length > 0 && (
-                                            <div className="mb-3">
-                                                <p className="text-[10px] text-amber-600 uppercase mb-1.5">Pilih Grup:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {drawerAnalysis.groups.map((g, i) => {
-                                                        const isU = usedDrawerDocs.has(g[0].id);
-                                                        return <button key={i} disabled={isU} onClick={()=>injectFromLaci(g[0].number, g[g.length-1].number, g.map(x=>x.id))} className={`px-2.5 py-1.5 rounded-lg border text-xs transition-all ${isU?'bg-amber-100/50 text-amber-400 border-transparent':'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'}`}>#{g[0].number} - #{g[g.length-1].number} ({g.length})</button>
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div>
-                                            <p className="text-[10px] text-amber-600 uppercase mb-1.5">Pilih Satuan:</p>
-                                            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto custom-scrollbar">
-                                                {drawerAnalysis.docs.map(d => {
-                                                    const isU = usedDrawerDocs.has(d.id);
-                                                    return <button key={d.id} disabled={isU} onClick={()=>injectFromLaci(d.number, d.number, [d.id])} className={`px-2 py-1 rounded-md border text-xs font-mono transition-all ${isU?'bg-amber-100/50 text-amber-400 border-transparent':'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'}`}>{isU&&<CheckCircle2 size={10} className="inline mr-0.5"/>}#{d.number}</button>
-                                                })}
-                                            </div>
-                                        </div>
+                                {formData.teamId && (availableDocs.adminDocs.length > 0 || availableDocs.penimDocs.length > 0) && (
+                                    <div className="space-y-4 mb-6">
+                                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b pb-2">Tersedia (Klik untuk memilih)</h3>
+                                        {renderLaciBox('Sisa di Laci Admin', availableDocs.adminDocs, availableDocs.adminGroups, false)}
+                                        {renderLaciBox('Sedang Dibawa Penimbang', availableDocs.penimDocs, availableDocs.penimGroups, true)}
                                     </div>
                                 )}
 
-                                <div className="space-y-3">
-                                    {ranges.map((range, idx) => {
-                                        const fv = parseInt(range.from); const tv = parseInt(range.to);
-                                        const c = (!isNaN(fv) && !isNaN(tv) && fv <= tv) ? (tv - fv + 1) : 0;
+                                <div className="space-y-4">
+                                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Form Input Rentang</h3>
+                                    {ranges.map((r, idx) => {
+                                        const fromVal = parseInt(r.from); const toVal = parseInt(r.to);
+                                        const rangeCount = (!isNaN(fromVal) && !isNaN(toVal) && fromVal <= toVal) ? (toVal - fromVal + 1) : 0;
                                         return (
-                                            <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-end gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                                <div className="w-full sm:flex-1"><label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Mulai</label><input type="number" placeholder="1001" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-mono" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} /></div>
-                                                <div className="w-full sm:flex-1"><label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Sampai</label><input type="number" placeholder="1005" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-mono" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} /></div>
-                                                <div className="w-full sm:w-auto mt-1 sm:mt-0 flex items-center justify-between gap-2">
-                                                    <span className={`text-xs font-semibold px-2 py-1.5 rounded-md ${c > 0 ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400'}`}>{c} lembar</span>
-                                                    <button onClick={() => { if(ranges.length>1) setRanges(ranges.filter((_,i)=>i!==idx)) }} disabled={ranges.length===1} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md disabled:opacity-30"><Trash2 size={16}/></button>
+                                            <div key={idx} className="flex flex-col xl:flex-row items-start xl:items-end gap-3 md:gap-4 bg-slate-50/50 p-4 md:p-5 rounded-xl border border-slate-200/60 transition-all hover:border-emerald-200">
+                                                <div className="w-full xl:flex-1">
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mulai Nomor</label>
+                                                    <input type="number" placeholder="1001" value={r.from} onChange={e => {const n=[...ranges]; n[idx].from=e.target.value; setRanges(n)}} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700 shadow-sm" />
+                                                </div>
+                                                <div className="hidden xl:block text-slate-300 font-bold text-xl pb-3">-</div>
+                                                <div className="w-full xl:flex-1">
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sampai Nomor</label>
+                                                    <input type="number" placeholder="1005" value={r.to} onChange={e => {const n=[...ranges]; n[idx].to=e.target.value; setRanges(n)}} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700 shadow-sm" />
+                                                </div>
+                                                <div className="w-full xl:w-auto flex items-center justify-between xl:justify-end gap-3 mt-1 xl:mt-0 pb-1">
+                                                    {rangeCount > 0 ? <span className="text-sm font-bold text-emerald-700 bg-emerald-100/50 px-4 py-2.5 rounded-xl border border-emerald-200 whitespace-nowrap shadow-sm">{rangeCount} lembar</span> : <span className="text-sm font-medium text-slate-400 px-4 py-2.5">0 lembar</span>}
+                                                    <button onClick={() => setRanges(ranges.filter((_,i)=>i!==idx))} disabled={ranges.length===1} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl disabled:opacity-30 transition-colors"><Icon name="Trash2" size={20}/></button>
                                                 </div>
                                             </div>
                                         )
                                     })}
-                                    <button onClick={() => setRanges([...ranges, {from:'', to:''}])} className="text-sm font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 py-1"><PlusCircle size={16}/> Tambah Baris Rentang</button>
+                                    <button onClick={()=>setRanges([...ranges, {from:'',to:''}])} className="w-full md:w-auto px-6 py-3 border-2 border-dashed border-emerald-200 text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all flex items-center justify-center gap-2 text-sm"><Icon name="PlusCircle" size={18}/> Tambah Baris Rentang Lainnya</button>
                                 </div>
 
                                 {conflictError && (
-                                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                                        <AlertTriangle size={16} className="text-red-500 mt-0.5" />
-                                        <div><p className="font-semibold text-red-700 text-sm">Akses Ditolak Lintas Tim</p><p className="text-xs text-red-600">Nomor #{conflictError.number} milik {conflictError.owner}.</p></div>
+                                    <div className="p-5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                                        <Icon name="AlertTriangle" size={24} className="text-red-600 mt-1 shrink-0"/>
+                                        <div>
+                                            <p className="text-red-800 font-bold text-lg">Akses Ditolak Lintas Tim!</p>
+                                            <p className="text-red-600 text-sm mt-1">Nomor <strong className="font-mono bg-red-200 px-1 rounded">#{conflictError.number}</strong> sudah berstatus sah milik: <strong className="uppercase bg-red-600 text-white px-2 py-0.5 rounded text-xs ml-1">{conflictError.owner}</strong></p>
+                                        </div>
                                     </div>
                                 )}
 
                                 {previewNumbers.length > 0 && !conflictError && (
-                                    <div className="mt-4 bg-slate-50 border border-slate-100 rounded-lg p-3">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Preview Nomor (Max 100):</p>
-                                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
-                                            {previewNumbers.map(n => <span key={n} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-xs font-mono text-slate-600">#{n}</span>)}
-                                            {totalGeneratedDocs > 100 && <span className="text-xs bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">+{totalGeneratedDocs - 100} lagi</span>}
+                                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Preview Alokasi (Live)</p>
+                                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                            {previewNumbers.map(n => <span key={n} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-mono font-semibold text-slate-600 shadow-sm">#{n}</span>)}
+                                            {totalDocs > 100 && <span className="px-3 py-1.5 bg-slate-200 rounded-lg text-sm font-bold text-slate-600">+{totalDocs - 100} lainnya...</span>}
                                         </div>
                                     </div>
                                 )}
 
-                                {totalGeneratedDocs > 0 && !conflictError && (
-                                    <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-slate-100 pt-5">
-                                        <div className="text-sm">
-                                            <span className="text-slate-500">Total Generate: </span>
-                                            <span className={`font-bold ${estimatedDocs>0&&totalGeneratedDocs!==estimatedDocs?'text-amber-600':'text-emerald-600'}`}>{totalGeneratedDocs} Lembar</span>
-                                            {estimatedDocs>0&&totalGeneratedDocs!==estimatedDocs&&<p className="text-[10px] text-amber-500 flex items-center gap-1 mt-0.5"><AlertTriangle size={12}/> Beda estimasi</p>}
+                                <div className={`p-6 rounded-2xl border-2 flex flex-col md:flex-row justify-between items-center gap-4 transition-all ${estimatedDocs > 0 && totalDocs !== estimatedDocs && !conflictError ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                                    <div className="text-center md:text-left">
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Generate Final</p>
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-3xl font-black text-slate-800">{totalDocs} <span className="text-sm font-semibold text-slate-500">Lembar</span></p>
+                                            {estimatedDocs > 0 && totalDocs !== estimatedDocs && !conflictError && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border border-amber-200"><Icon name="AlertTriangle" size={12}/> Beda Estimasi</span>}
+                                            {estimatedDocs > 0 && totalDocs === estimatedDocs && !conflictError && <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border border-emerald-200"><Icon name="CheckCircle2" size={12}/> Pas Estimasi</span>}
                                         </div>
-                                        <button onClick={handleGenerate} disabled={isGenerating || !formData.teamId} className="w-full sm:w-auto px-6 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 flex items-center justify-center gap-2">
-                                            {isGenerating?<RefreshCw size={16} className="animate-spin"/>:<Play size={16} className="fill-current"/>} Simpan Kandang
-                                        </button>
                                     </div>
-                                )}
+                                    <button onClick={handleGenerate} disabled={!!conflictError || totalDocs===0 || !formData.teamId} className="w-full md:w-auto bg-emerald-500 text-white px-8 py-3.5 rounded-xl font-bold shadow-md shadow-emerald-200 disabled:opacity-50 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"><Icon name="Play" size={20} className="fill-current"/> Proses & Simpan</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -664,8 +723,10 @@
             // --- VIEW: PROSES PANEN ---
             const ProsesPanenView = () => {
                 const [selectedBatch, setSelectedBatch] = useState(null);
+                const [searchTerm, setSearchTerm] = useState("");
                 const [visibleCount, setVisibleCount] = useState(50);
-                const [searchTerm, setSearchTerm] = useState('');
+                const [massInputModal, setMassInputModal] = useState({ isOpen: false, text: "" });
+                
                 const activeBatches = batches.filter(b => b.status === 'AKTIF');
 
                 const handleUpdateDocStatus = (docId, newStatus) => {
@@ -675,44 +736,72 @@
                 const handleBulkAction = (status) => {
                     if (!selectedBatch) return;
                     setDocuments(docs => docs.map(d => (d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN') ? { ...d, status: status } : d));
-                    addToast(`Status massal diubah menjadi ${status === 'TERPAKAI' ? 'Selesai' : 'Laci'}`);
+                    addToast(`Status diubah massal menjadi ${status === 'TERPAKAI' ? 'Selesai' : 'Laci'}`, 'success');
                 };
 
                 const handleCloseBatch = () => {
                     const unresolved = documents.filter(d => d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN').length;
-                    if (unresolved > 0) return fireAlert('Ditolak', `Masih ada ${unresolved} dokumen menggantung!`, 'error');
+                    if (unresolved > 0) return fireAlert('Ditolak', `Masih ada ${unresolved} dokumen menggantung! Selesaikan atau Tarik ke laci.`, 'error');
                     setBatches(bs => bs.map(b => b.id === selectedBatch.id ? { ...b, status: 'SELESAI' } : b));
-                    fireAlert('Selesai', `Siklus kandang ditutup.`, 'success');
+                    fireAlert('Selesai', `Siklus kandang ditutup permanen.`, 'success');
                     setSelectedBatch(null);
+                };
+
+                const handleProcessMassInput = () => {
+                    const rawText = massInputModal.text;
+                    const matchedNumbers = rawText.match(/\d+/g) || [];
+                    const uniqueNumbers = [...new Set(matchedNumbers)];
+
+                    if (uniqueNumbers.length === 0) return fireAlert('Data Kosong', 'Tidak ada angka yang terdeteksi.', 'error');
+                    
+                    let updateCount = 0; let alreadyUsedCount = 0;
+                    
+                    const updatedDocs = documents.map(d => {
+                        if (uniqueNumbers.includes(d.number) && d.batchId === selectedBatch.id) {
+                            if (d.status === 'TERPAKAI') { alreadyUsedCount++; return d; } 
+                            else { updateCount++; return { ...d, status: 'TERPAKAI' }; }
+                        }
+                        return d;
+                    });
+
+                    const existingBatchNumbers = new Set(documents.filter(d => d.batchId === selectedBatch.id && uniqueNumbers.includes(d.number)).map(d => d.number));
+                    const notFoundCount = uniqueNumbers.length - existingBatchNumbers.size;
+
+                    setDocuments(updatedDocs);
+                    setMassInputModal({ isOpen: false, text: "" });
+                    
+                    fireAlert('Laporan Scan Massal', `✅ ${updateCount} diubah jadi Terpakai.\n\n⚠️ ${alreadyUsedCount} sudah Terpakai sebelumnya.\n\n❌ ${notFoundCount} tidak valid (bukan milik kandang ini).`, 'success');
                 };
 
                 if (!selectedBatch) {
                     return (
-                        <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
-                            <div className="mb-6">
-                                <h2 className="text-2xl font-bold text-slate-800">Proses Panen</h2>
-                                <p className="text-slate-500 text-sm mt-1">Pilih kandang aktif untuk mencatat kepulangan dokumen.</p>
+                        <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 fade-in">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center shadow-inner"><Icon name="RefreshCw" size={24}/></div>
+                                <div><h2 className="text-2xl font-bold text-slate-800">Proses Panen</h2><p className="text-sm text-slate-500">Pilih kandang aktif untuk mencatat pengembalian dokumen.</p></div>
                             </div>
 
                             {activeBatches.length === 0 ? (
-                                <div className="bg-white p-10 text-center rounded-2xl border border-slate-200"><ListOrdered size={32} className="mx-auto text-slate-300 mb-3"/><p className="font-semibold text-slate-600">Tidak ada kandang aktif.</p></div>
+                                <div className="bg-white p-12 text-center rounded-2xl border-2 border-dashed border-slate-200">
+                                    <Icon name="ListOrdered" size={40} className="mx-auto text-slate-300 mb-4"/>
+                                    <p className="text-lg font-bold text-slate-600">Tidak ada kandang aktif.</p>
+                                </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {activeBatches.map(batch => {
                                         const unresolved = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').length;
+                                        const t = teams.find(x=>x.id===batch.teamId)?.name || 'Unknown';
                                         return (
-                                            <div key={batch.id} onClick={() => { setSelectedBatch(batch); setVisibleCount(50); setSearchTerm(''); }} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-300 cursor-pointer transition-colors group">
+                                            <div key={batch.id} onClick={() => {setSelectedBatch(batch); setVisibleCount(50); setSearchTerm('');}} className="bg-white p-6 rounded-2xl border border-slate-200 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
                                                 <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <h3 className="font-bold text-slate-800 group-hover:text-emerald-600">{batch.name}</h3>
-                                                        <p className="text-xs text-slate-500 mt-1">{getTeamName(batch.teamId)}</p>
-                                                    </div>
-                                                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded">AKTIF</span>
+                                                    <div><h3 className="font-bold text-lg text-slate-800 group-hover:text-emerald-600 transition-colors">{batch.name}</h3><p className="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-1"><Icon name="Users" size={14}/> {t}</p></div>
+                                                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded border border-emerald-200">AKTIF</span>
                                                 </div>
-                                                <div className="flex gap-4 text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                    <div><p className="text-[10px] text-slate-400 uppercase mb-0.5">Populasi</p><p className="font-semibold">{batch.population}</p></div>
-                                                    <div className="w-px bg-slate-200"></div>
-                                                    <div><p className="text-[10px] text-slate-400 uppercase mb-0.5">Gantung</p><p className={`font-semibold ${unresolved>0?'text-amber-600':'text-emerald-600'}`}>{unresolved}</p></div>
+                                                <div className="bg-slate-50 p-4 rounded-xl flex gap-4 border border-slate-100 items-center">
+                                                    <div className="flex-1"><p className="text-[10px] font-bold text-slate-400 uppercase">Populasi</p><p className="font-bold text-slate-700">{batch.population}</p></div>
+                                                    <div className="w-px h-8 bg-slate-200"></div>
+                                                    <div className="flex-1"><p className="text-[10px] font-bold text-slate-400 uppercase">Gantung</p><p className={`font-bold ${unresolved>0?'text-amber-500':'text-emerald-500'}`}>{unresolved>0 ? unresolved : 'Bersih'}</p></div>
                                                 </div>
                                             </div>
                                         )
@@ -728,150 +817,280 @@
                 const unresolvedCount = batchDocs.filter(d => d.status === 'DIALOKASIKAN').length;
 
                 return (
-                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
-                        <button onClick={() => setSelectedBatch(null)} className="text-slate-500 hover:text-emerald-600 text-sm font-medium flex items-center gap-1 mb-2"><ChevronRight className="rotate-180" size={16}/> Kembali</button>
+                    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-4 fade-in">
+                        <button onClick={()=>setSelectedBatch(null)} className="text-sm font-bold text-slate-500 mb-2 flex items-center gap-2 hover:text-emerald-600"><Icon name="ChevronRight" size={16} className="rotate-180"/> Kembali</button>
                         
-                        <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-50/50 rounded-full blur-2xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800">{selectedBatch.name}</h2>
-                                <p className="text-sm text-slate-500 mt-1">{getTeamName(selectedBatch.teamId)} • {batchDocs.length} Dokumen</p>
+                                <h2 className="text-2xl font-bold flex items-center gap-2">{selectedBatch.name} <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded border border-emerald-200">AKTIF</span></h2>
+                                <p className="text-sm font-semibold text-slate-500 mt-1 flex items-center gap-3">
+                                    <span className="flex items-center gap-1"><Icon name="Users" size={14}/> {teams.find(t=>t.id===selectedBatch.teamId)?.name}</span>
+                                    <span className="flex items-center gap-1"><Icon name="FileText" size={14}/> {batchDocs.length} Dokumen</span>
+                                </p>
                             </div>
-                            <button onClick={handleCloseBatch} className={`px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 ${unresolvedCount===0?'bg-emerald-600 text-white hover:bg-emerald-700':'bg-slate-100 text-slate-400 cursor-not-allowed'}`}><Archive size={16}/> Tutup Kandang</button>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-2 z-10 shadow-sm">
-                            <span className="text-sm font-semibold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-100">{unresolvedCount} Menggantung</span>
-                            <div className="flex gap-2 w-full md:w-auto">
-                                <input type="text" placeholder="Cari..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full md:w-32 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm"/>
-                                <button onClick={() => handleBulkAction('TERPAKAI')} disabled={unresolvedCount===0} className="px-3 py-2 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-lg hover:bg-emerald-100 disabled:opacity-50 whitespace-nowrap"><CheckSquare size={16} className="inline mr-1"/> Selesai</button>
-                                <button onClick={() => handleBulkAction('DI_ADMIN')} disabled={unresolvedCount===0} className="px-3 py-2 bg-amber-50 text-amber-700 text-sm font-semibold rounded-lg hover:bg-amber-100 disabled:opacity-50 whitespace-nowrap"><Inbox size={16} className="inline mr-1"/> Laci</button>
+                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                <button onClick={()=>setMassInputModal({isOpen: true, text: ''})} className="w-full md:w-auto bg-indigo-50 text-indigo-700 border border-indigo-200 px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 text-sm"><Icon name="CheckSquare" size={18}/> Scan Massal (Paste)</button>
+                                <button onClick={handleCloseBatch} className={`w-full md:w-auto px-6 py-2.5 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${unresolvedCount===0?'bg-slate-800 text-white hover:bg-slate-900 shadow-md':'bg-slate-100 text-slate-400 border cursor-not-allowed'}`} disabled={unresolvedCount>0}><Icon name="Archive" size={18}/> Tutup Kandang</button>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                            <table className="w-full text-left text-sm border-collapse min-w-[500px]">
-                                <thead><tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold"><th className="px-6 py-3">No.</th><th className="px-6 py-3">BTPA</th><th className="px-6 py-3">Status</th><th className="px-6 py-3 text-right">Aksi</th></tr></thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredDocs.slice(0, visibleCount).map((doc, i) => (
-                                        <tr key={doc.id} className="hover:bg-slate-50/50">
-                                            <td className="px-6 py-3 text-slate-400">{i+1}</td>
-                                            <td className="px-6 py-3 font-mono font-semibold">{doc.number}</td>
-                                            <td className="px-6 py-3">
-                                                {doc.status==='DIALOKASIKAN'&&<span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-semibold uppercase">Lapangan</span>}
-                                                {doc.status==='TERPAKAI'&&<span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold uppercase flex w-fit items-center gap-1"><CheckCircle2 size={12}/> Selesai</span>}
-                                                {doc.status==='DI_ADMIN'&&<span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-semibold uppercase flex w-fit items-center gap-1"><Inbox size={12}/> Laci</span>}
-                                            </td>
-                                            <td className="px-6 py-3 text-right">
-                                                {doc.status==='DIALOKASIKAN'? (
-                                                    <div className="flex justify-end gap-1.5"><button onClick={()=>handleUpdateDocStatus(doc.id,'TERPAKAI')} className="px-3 py-1.5 bg-emerald-500 text-white rounded-md text-xs font-semibold hover:bg-emerald-600">Pakai</button><button onClick={()=>handleUpdateDocStatus(doc.id,'DI_ADMIN')} className="px-3 py-1.5 bg-amber-500 text-white rounded-md text-xs font-semibold hover:bg-amber-600">Laci</button></div>
-                                                ) : (
-                                                    <button onClick={()=>handleUpdateDocStatus(doc.id,'DIALOKASIKAN')} className="px-3 py-1.5 text-slate-500 bg-slate-100 rounded-md text-xs font-medium hover:bg-slate-200">Batal</button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {visibleCount < filteredDocs.length && <div className="p-4 text-center border-t border-slate-100"><button onClick={()=>setVisibleCount(p=>p+50)} className="text-sm font-medium text-emerald-600">Tampilkan Lagi</button></div>}
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col lg:flex-row justify-between gap-4 sticky top-4 z-10 shadow-sm">
+                            <div className="flex items-center gap-3 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 w-full lg:w-auto">
+                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                                <span className="text-amber-800 font-bold text-sm">{unresolvedCount} Gantung</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                                <div className="relative flex-1 sm:min-w-[200px]">
+                                    <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input type="text" placeholder="Cari No..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold" />
+                                </div>
+                                <div className="w-px h-8 bg-slate-200 hidden sm:block mt-1"></div>
+                                <button onClick={()=>handleBulkAction('TERPAKAI')} disabled={unresolvedCount===0} className="flex-1 sm:flex-none px-4 py-2 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200 disabled:opacity-50 text-sm hover:bg-emerald-100 transition-all flex items-center justify-center gap-1.5"><Icon name="CheckCircle2" size={16}/> Semua Selesai</button>
+                                <button onClick={()=>handleBulkAction('DI_ADMIN')} disabled={unresolvedCount===0} className="flex-1 sm:flex-none px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl border border-amber-200 disabled:opacity-50 text-sm hover:bg-amber-100 transition-all flex items-center justify-center gap-1.5"><Icon name="Inbox" size={16}/> Semua Laci</button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-100"><tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><th className="p-4">No. Dokumen</th><th className="p-4">Status Live</th><th className="p-4 text-right">Aksi Manual</th></tr></thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredDocs.slice(0, visibleCount).map(doc => (
+                                            <tr key={doc.id} className="hover:bg-slate-50/50 group">
+                                                <td className="p-4 font-mono font-bold text-lg text-slate-700">#{doc.number}</td>
+                                                <td className="p-4">
+                                                    {doc.status === 'DIALOKASIKAN' && <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md font-bold uppercase tracking-wider text-slate-500 border border-slate-200 flex items-center gap-1 w-max"><Icon name="Activity" size={12}/> Menggantung</span>}
+                                                    {doc.status === 'TERPAKAI' && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md font-bold uppercase tracking-wider border border-emerald-200 flex items-center gap-1 w-max"><Icon name="CheckCircle2" size={12}/> Selesai</span>}
+                                                    {doc.status === 'DI_ADMIN' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-md font-bold uppercase tracking-wider border border-amber-200 flex items-center gap-1 w-max"><Icon name="Inbox" size={12}/> Di Laci</span>}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    {doc.status === 'DIALOKASIKAN' ? (
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={()=>handleUpdateDocStatus(doc.id, 'TERPAKAI')} className="text-xs px-4 py-2 bg-emerald-500 text-white font-bold rounded-lg shadow-sm hover:bg-emerald-600 active:scale-95 transition-all">Selesai</button>
+                                                            <button onClick={()=>handleUpdateDocStatus(doc.id, 'DI_ADMIN')} className="text-xs px-4 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-sm hover:bg-amber-600 active:scale-95 transition-all">Ke Laci</button>
+                                                        </div>
+                                                    ) : ( <button onClick={()=>handleUpdateDocStatus(doc.id, 'DIALOKASIKAN')} className="text-xs px-4 py-2 bg-slate-100 border border-slate-200 font-bold rounded-lg text-slate-500 hover:bg-slate-200 transition-all flex items-center gap-1 ml-auto"><Icon name="Undo2" size={14}/> Batal</button> )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {visibleCount < filteredDocs.length && <div className="p-4 bg-slate-50 border-t border-slate-100 text-center"><button onClick={()=>setVisibleCount(p=>p+50)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 shadow-sm">Tampilkan Lebih Banyak...</button></div>}
+                        </div>
+
+                        {/* Modal Scan Massal */}
+                        {massInputModal.isOpen && (
+                            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-[100] fade-in">
+                                <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icon name="CheckSquare" size={20} className="text-indigo-600"/> Scan / Paste Massal</h3>
+                                        <button onClick={()=>setMassInputModal({isOpen:false})} className="text-slate-400 hover:text-slate-700"><Icon name="X" size={20}/></button>
+                                    </div>
+                                    <p className="text-xs font-semibold text-slate-500 mb-4">Paste data dari Excel / WA ke bawah sini. Sistem akan otomatis mendeteksi semua angka dan mengubah statusnya menjadi <strong>Selesai (Terpakai)</strong>.</p>
+                                    <textarea value={massInputModal.text} onChange={e=>setMassInputModal({...massInputModal, text: e.target.value})} className="w-full h-48 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm shadow-inner resize-none" placeholder="1001&#10;1002&#10;1003..."></textarea>
+                                    <div className="flex gap-3 justify-end mt-6">
+                                        <button onClick={()=>setMassInputModal({isOpen:false})} className="px-5 py-2.5 font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">Batal</button>
+                                        <button onClick={handleProcessMassInput} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2"><Icon name="Play" size={18} className="fill-current"/> Proses Scan</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // --- VIEW: SCAN MASSAL GLOBAL ---
+            const ScanMassalView = () => {
+                const [inputText, setInputText] = useState('');
+
+                const handleProcess = () => {
+                    const matchedNumbers = inputText.match(/\d+/g) || [];
+                    const uniqueNumbers = [...new Set(matchedNumbers)];
+
+                    if (uniqueNumbers.length === 0) return fireAlert('Data Kosong', 'Tidak ada angka yang terdeteksi di dalam teks.', 'error');
+                    
+                    let updateCount = 0; 
+                    let alreadyUsedCount = 0;
+                    const foundNumbers = new Set();
+                    
+                    const updatedDocs = documents.map(d => {
+                        if (uniqueNumbers.includes(d.number)) {
+                            foundNumbers.add(d.number);
+                            if (d.status === 'TERPAKAI') { alreadyUsedCount++; return d; } 
+                            else { updateCount++; return { ...d, status: 'TERPAKAI' }; }
+                        }
+                        return d;
+                    });
+
+                    const notFoundCount = uniqueNumbers.length - foundNumbers.size;
+
+                    setDocuments(updatedDocs);
+                    setInputText("");
+                    
+                    fireAlert('Laporan Scan Global', `✅ ${updateCount} dokumen berhasil disahkan (Terpakai).\n\n⚠️ ${alreadyUsedCount} dokumen sudah berstatus Terpakai sebelumnya.\n\n❌ ${notFoundCount} nomor tidak ditemukan di sistem.`, 'success');
+                };
+
+                return (
+                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
+                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shadow-inner"><Icon name="CheckSquare" size={28}/></div>
+                                <div><h2 className="text-2xl font-bold text-slate-800">Scan Massal Global</h2><p className="text-sm font-semibold text-slate-500 mt-0.5">Sahkan dokumen BTPA lintas kandang sekaligus dari Excel/WA.</p></div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
+                            <p className="text-xs font-semibold text-slate-500 mb-4">Paste (Tempel) ratusan nomor BTPA Anda ke dalam kotak di bawah ini. Sistem akan otomatis melacak nomor tersebut di seluruh database dan mengubah statusnya menjadi <strong className="text-emerald-600">Selesai (Terpakai)</strong> secara global.</p>
+                            
+                            <textarea 
+                                value={inputText} 
+                                onChange={e=>setInputText(e.target.value)} 
+                                className="w-full h-64 p-5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm shadow-inner resize-none transition-all" 
+                                placeholder="Paste data Anda di sini...&#10;Contoh:&#10;16277&#10;16278&#10;16248..."
+                            ></textarea>
+                            
+                            <div className="flex justify-end mt-6">
+                                <button onClick={handleProcess} disabled={!inputText.trim()} className="px-8 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2"><Icon name="Play" size={20} className="fill-current"/> Proses Semua Nomor</button>
+                            </div>
                         </div>
                     </div>
                 );
             };
 
-            // --- VIEW: LACI ADMIN ---
+            // --- VIEW: LACI ADMIN & PENIMBANG ---
             const LaciAdminView = () => {
-                const [activeTab, setActiveTab] = useState('laci');
-                const [giveModal, setGiveModal] = useState({ isOpen: false, teamId: null, penimbangName: '', selected: new Set() });
+                const [tab, setTab] = useState('laci');
+                const [handoverModal, setHandoverModal] = useState({ isOpen: false, teamId: null, penimbangName: '' });
+                const [handoverRanges, setHandoverRanges] = useState([{from:'', to:''}]);
+                
+                const laciDocs = documents.filter(d => d.status === 'DI_ADMIN');
+                const penimDocs = documents.filter(d => d.status === 'DI_PENIMBANG');
 
-                const drawerDocs = documents.filter(d => d.status === 'DI_ADMIN');
-                const penimbangDocs = documents.filter(d => d.status === 'DI_PENIMBANG');
+                const groupLaci = laciDocs.reduce((a,c) => { if(!a[c.teamId]) a[c.teamId]=[]; a[c.teamId].push(c); return a; }, {});
+                const groupPenim = penimDocs.reduce((a,c) => { if(!a[c.penimbangName]) a[c.penimbangName]=[]; a[c.penimbangName].push(c); return a; }, {});
 
-                const gDrawer = drawerDocs.reduce((a,c)=>{if(!a[c.teamId])a[c.teamId]=[];a[c.teamId].push(c);return a}, {});
-                const gPenimbang = penimbangDocs.reduce((a,c)=>{if(!a[c.penimbangName])a[c.penimbangName]=[];a[c.penimbangName].push(c);return a}, {});
+                const handleHandover = () => {
+                    let numToUpdate = [];
+                    for(const r of handoverRanges) {
+                        const f = parseInt(r.from); const t = parseInt(r.to);
+                        if(isNaN(f)||isNaN(t)||f>t) continue;
+                        for(let i=f; i<=t; i++) numToUpdate.push(i.toString());
+                    }
+                    if(numToUpdate.length===0) return fireAlert('Gagal','Rentang tidak valid/kosong','error');
 
-                const confirmHandover = () => {
-                    if(!giveModal.penimbangName.trim() || giveModal.selected.size===0) return fireAlert('Error','Pilih dokumen dan ketik nama.','error');
-                    setDocuments(docs => docs.map(d => giveModal.selected.has(d.id)?{...d,status:'DI_PENIMBANG',penimbangName:giveModal.penimbangName.trim()}:d));
-                    setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()});
-                    addToast(`Diserahkan ke ${giveModal.penimbangName}`);
+                    let updated = 0;
+                    const newDocs = documents.map(d => {
+                        if(d.teamId === handoverModal.teamId && d.status === 'DI_ADMIN' && numToUpdate.includes(d.number)) {
+                            updated++; return { ...d, status: 'DI_PENIMBANG', penimbangName: handoverModal.penimbangName };
+                        }
+                        return d;
+                    });
+
+                    if(updated===0) return fireAlert('Gagal','Nomor yang diketik tidak ditemukan di Laci Tim ini.','error');
+                    
+                    setDocuments(newDocs);
+                    setHandoverModal({isOpen:false}); setHandoverRanges([{from:'',to:''}]);
+                    addToast(`${updated} lembar diserahkan ke ${handoverModal.penimbangName}`,'success');
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-4">
-                            <div><h2 className="text-2xl font-bold text-slate-800">Laci & Inventaris</h2><p className="text-slate-500 text-sm mt-1">Kontrol sisa dokumen.</p></div>
-                            <div className="flex bg-slate-100 p-1 rounded-lg">
-                                <button onClick={()=>setActiveTab('laci')} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab==='laci'?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>Stok Laci</button>
-                                <button onClick={()=>setActiveTab('penimbang')} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab==='penimbang'?'bg-white text-slate-800 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>Di Penimbang</button>
+                    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 fade-in">
+                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shadow-inner"><Icon name="Inbox" size={28}/></div>
+                                <div><h2 className="text-2xl font-bold text-slate-800">Gudang Inventaris</h2><p className="text-sm font-semibold text-slate-500 mt-0.5">Pantau Laci Admin & Dokumen di Penimbang</p></div>
+                            </div>
+                            <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full md:w-auto">
+                                <button onClick={()=>setTab('laci')} className={`flex-1 md:flex-none px-6 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${tab==='laci'?'bg-white shadow-sm text-slate-800':'text-slate-500'}`}><Icon name="Inbox" size={16}/> Laci Internal</button>
+                                <button onClick={()=>setTab('penim')} className={`flex-1 md:flex-none px-6 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${tab==='penim'?'bg-white shadow-sm text-slate-800':'text-slate-500'}`}><Icon name="UserCheck" size={16}/> Di Penimbang</button>
                             </div>
                         </div>
 
-                        {activeTab === 'laci' && (
-                            <div className="space-y-4">
-                                {Object.keys(gDrawer).length === 0 ? <div className="bg-white p-12 text-center rounded-2xl border border-slate-200"><Inbox className="mx-auto mb-3 text-slate-300" size={40} /><p className="text-slate-500 font-medium">Laci kosong.</p></div> : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {Object.entries(gDrawer).map(([tId, docs]) => {
-                                            const team = teams.find(x=>x.id===tId);
-                                            return (
-                                                <div key={tId} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <div><h3 className="font-bold text-slate-800">{team?.name||'Tim Dihapus'}</h3><p className="text-xs text-slate-500">{docs.length} Dokumen</p></div>
-                                                        <button onClick={()=>{setGiveModal({isOpen:true,teamId:tId,penimbangName:team?.penimbang||'',selected:new Set()})}} className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100">Beri ke Penimbang</button>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                                                        {docs.map(d => <span key={d.id} className="bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs font-mono text-slate-600">#{d.number}</span>)}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {activeTab === 'penimbang' && (
-                            <div className="space-y-4">
-                                {Object.keys(gPenimbang).length === 0 ? <div className="bg-white p-12 text-center rounded-2xl border border-slate-200"><UserCheck className="mx-auto mb-3 text-slate-300" size={40} /><p className="text-slate-500 font-medium">Tidak ada yang dibawa Penimbang.</p></div> : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {Object.entries(gPenimbang).map(([pName, docs]) => (
-                                            <div key={pName} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                                                <div className="mb-4">
-                                                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><UserCheck size={16} className="text-indigo-500"/> {pName}</h3>
-                                                    <p className="text-xs text-slate-500 mt-1">Membawa {docs.length} lembar</p>
-                                                </div>
-                                                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                                    {docs.map(d => (
-                                                        <div key={d.id} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                            <span className="font-mono text-sm font-semibold">#{d.number}</span>
-                                                            <div className="flex gap-1.5">
-                                                                <button onClick={()=>{setDocuments(ds=>ds.map(x=>x.id===d.id?{...x,status:'TERPAKAI'}:x)); addToast('Dipakai','success')}} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded hover:bg-emerald-200">Sah</button>
-                                                                <button onClick={()=>{setDocuments(ds=>ds.map(x=>x.id===d.id?{...x,status:'DI_ADMIN',penimbangName:null}:x)); addToast('Ditarik','success')}} className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded hover:bg-amber-200">Tarik</button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {giveModal.isOpen && (
-                            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                                <div className="bg-white rounded-2xl max-w-md w-full shadow-xl">
-                                    <div className="p-5 border-b border-slate-100 flex justify-between items-center"><h3 className="font-bold text-lg">Handover Dokumen</h3><button onClick={()=>setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()})}><X size={20}/></button></div>
-                                    <div className="p-5">
-                                        <div className="mb-4"><label className="text-xs font-semibold text-slate-500 block mb-1">Nama Penimbang</label><input type="text" className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none" value={giveModal.penimbangName} onChange={e=>setGiveModal({...giveModal,penimbangName:e.target.value})}/></div>
-                                        <label className="text-xs font-semibold text-slate-500 block mb-2">Pilih Dokumen ({giveModal.selected.size})</label>
-                                        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {(gDrawer[giveModal.teamId]||[]).map(d => {
-                                                const sel = giveModal.selected.has(d.id);
-                                                return <button key={d.id} onClick={()=>{const s=new Set(giveModal.selected); sel?s.delete(d.id):s.add(d.id); setGiveModal({...giveModal,selected:s})}} className={`px-2.5 py-1 rounded text-xs font-mono border ${sel?'bg-indigo-600 text-white border-indigo-600':'bg-white text-slate-600 border-slate-200'}`}>{d.number}</button>
-                                            })}
+                        {tab === 'laci' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 fade-in">
+                                {Object.keys(groupLaci).length === 0 ? (
+                                    <div className="col-span-1 md:col-span-2 p-12 text-center bg-white rounded-2xl border-2 border-dashed border-slate-200"><Icon name="Inbox" size={48} className="mx-auto text-slate-300 mb-4"/><p className="text-lg font-bold text-slate-600">Laci sangat bersih.</p></div>
+                                ) : Object.entries(groupLaci).map(([teamId, docs]) => {
+                                    const team = teams.find(t=>t.id===teamId);
+                                    return (
+                                    <div key={teamId} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col group hover:border-amber-200 transition-all">
+                                        <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
+                                            <div><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Icon name="Users" size={18} className="text-slate-400"/> {team?.name}</h3><p className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded w-max mt-2 border border-amber-100">{docs.length} Lembar</p></div>
+                                            <button onClick={()=>setHandoverModal({isOpen:true, teamId, penimbangName: team?.penimbang || ''})} className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 font-bold rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"><Icon name="Briefcase" size={14}/> Handover Penimbang</button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                                            {docs.map(d=><span key={d.id} className="text-sm bg-slate-50 border border-slate-200 px-3 py-1.5 font-mono font-semibold rounded-lg text-slate-600 shadow-sm cursor-default hover:bg-white transition-colors">#{d.number}</span>)}
                                         </div>
                                     </div>
-                                    <div className="p-5 border-t border-slate-100 flex justify-end gap-2"><button onClick={()=>setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()})} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg">Batal</button><button onClick={confirmHandover} className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg">Serahkan</button></div>
+                                )})}
+                            </div>
+                        )}
+
+                        {tab === 'penim' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 fade-in">
+                                {Object.keys(groupPenim).length === 0 ? (
+                                    <div className="col-span-full p-12 text-center bg-white rounded-2xl border-2 border-dashed border-slate-200"><Icon name="UserCheck" size={48} className="mx-auto text-slate-300 mb-4"/><p className="text-lg font-bold text-slate-600">Tidak ada dokumen di Penimbang.</p></div>
+                                ) : Object.entries(groupPenim).map(([pName, docs]) => (
+                                    <div key={pName} className="bg-white rounded-2xl border border-indigo-200 shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-all">
+                                        <div className="p-5 bg-indigo-50/50 border-b border-indigo-100">
+                                            <h3 className="font-bold text-lg text-indigo-900 flex items-center gap-2 mb-2"><Icon name="UserCheck" size={20} className="text-indigo-500"/> {pName}</h3>
+                                            <span className="text-[10px] font-bold text-white bg-indigo-500 px-2 py-1 rounded shadow-sm">Membawa {docs.length} Lembar</span>
+                                        </div>
+                                        <div className="p-4 bg-slate-50/30 flex-1 overflow-y-auto max-h-80 custom-scrollbar space-y-2">
+                                            {docs.map(d=>(
+                                                <div key={d.id} className="flex justify-between items-center bg-white p-3 border border-slate-200 rounded-xl shadow-sm hover:border-indigo-200 transition-colors">
+                                                    <div>
+                                                        <span className="font-mono text-base font-bold text-slate-800">#{d.number}</span>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{teams.find(t=>t.id===d.teamId)?.name}</p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={()=>{setDocuments(documents.map(x=>x.id===d.id?{...x,status:'TERPAKAI'}:x)); addToast('Terpakai','success')}} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-100 active:scale-95 transition-all shadow-sm">Sah</button>
+                                                        <button onClick={()=>{setDocuments(documents.map(x=>x.id===d.id?{...x,status:'DI_ADMIN',penimbangName:null}:x)); addToast('Ditarik','success')}} className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg font-bold hover:bg-amber-100 active:scale-95 transition-all shadow-sm flex items-center gap-1"><Icon name="Undo2" size={12}/> Tarik</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Modal Handover ke Penimbang (Dengan Fitur Rentang) */}
+                        {handoverModal.isOpen && (
+                            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-[100] fade-in">
+                                <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icon name="Briefcase" size={20} className="text-indigo-600"/> Handover Dokumen</h3>
+                                        <button onClick={()=>setHandoverModal({isOpen:false})} className="text-slate-400 hover:text-slate-700"><Icon name="X" size={20}/></button>
+                                    </div>
+                                    
+                                    <div className="mb-6">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Nama Penimbang</label>
+                                        <input type="text" value={handoverModal.penimbangName} onChange={e=>setHandoverModal({...handoverModal, penimbangName: e.target.value})} className="w-full border border-slate-200 bg-slate-50 p-3 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    </div>
+
+                                    <div className="mb-2">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Pilih Rentang Laci yang Diserahkan</label>
+                                    </div>
+                                    
+                                    <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                        {handoverRanges.map((r, i)=>(
+                                            <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                                <input type="number" placeholder="Mulai" value={r.from} onChange={e=>{const n=[...handoverRanges]; n[i].from=e.target.value; setHandoverRanges(n)}} className="w-full border border-slate-200 bg-white p-2 rounded-lg text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500"/>
+                                                <span className="text-slate-400 font-bold">-</span>
+                                                <input type="number" placeholder="Sampai" value={r.to} onChange={e=>{const n=[...handoverRanges]; n[i].to=e.target.value; setHandoverRanges(n)}} className="w-full border border-slate-200 bg-white p-2 rounded-lg text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500"/>
+                                                <button onClick={()=>setHandoverRanges(handoverRanges.filter((_,idx)=>idx!==i))} disabled={handoverRanges.length===1} className="text-slate-400 hover:text-red-500 disabled:opacity-30"><Icon name="Trash2" size={18}/></button>
+                                            </div>
+                                        ))}
+                                        <button onClick={()=>setHandoverRanges([...handoverRanges,{from:'',to:''}])} className="text-xs text-indigo-600 font-bold flex items-center gap-1 hover:text-indigo-800"><Icon name="PlusCircle" size={14}/> Tambah Baris Rentang</button>
+                                    </div>
+
+                                    <div className="flex gap-3 justify-end mt-8 pt-4 border-t border-slate-100">
+                                        <button onClick={()=>setHandoverModal({isOpen:false})} className="px-5 py-2.5 font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">Batal</button>
+                                        <button onClick={handleHandover} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2"><Icon name="UserCheck" size={18}/> Serahkan ke Penimbang</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -881,112 +1100,90 @@
 
             // --- VIEW: MONITOR TIM ---
             const MonitorTimView = () => {
-                const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id || '');
-                const [visibleCount, setVisibleCount] = useState(100);
+                const [selectedTeam, setSelectedTeam] = useState(teams[0]?.id || '');
+                if(teams.length === 0) return <div className="p-12 text-center text-slate-400 font-bold text-lg"><Icon name="BarChart3" size={48} className="mx-auto mb-4 opacity-30"/>Belum ada tim didaftarkan.</div>;
 
-                useEffect(() => { setVisibleCount(100); }, [selectedTeamId]);
+                const tDocs = documents.filter(d => d.teamId === selectedTeam);
+                const teamBatches = batches.filter(b => b.teamId === selectedTeam);
+                const sSelesai = tDocs.filter(d=>d.status==='TERPAKAI').length;
+                const sGantung = tDocs.filter(d=>d.status==='DIALOKASIKAN').length;
+                const sLaci = tDocs.filter(d=>d.status==='DI_ADMIN').length;
+                const sPenim = tDocs.filter(d=>d.status==='DI_PENIMBANG').length;
+                const tot = tDocs.length;
 
-                if (teams.length === 0) return <div className="p-8 text-center text-slate-500">Belum ada tim.</div>;
-
-                const teamDocs = documents.filter(d => d.teamId === selectedTeamId);
-                const teamBatches = batches.filter(b => b.teamId === selectedTeamId);
-
-                const statTerpakai = teamDocs.filter(d => d.status === 'TERPAKAI').length;
-                const statDialokasikan = teamDocs.filter(d => d.status === 'DIALOKASIKAN').length;
-                const statLaci = teamDocs.filter(d => d.status === 'DI_ADMIN').length;
-                const statPenimbang = teamDocs.filter(d => d.status === 'DI_PENIMBANG').length;
-                const totalDocs = teamDocs.length;
-
-                const pTerpakai = totalDocs===0?0:(statTerpakai/totalDocs)*100;
-                const pDialokasikan = totalDocs===0?0:(statDialokasikan/totalDocs)*100;
-                const pLaci = totalDocs===0?0:(statLaci/totalDocs)*100;
-                const pPenimbang = totalDocs===0?0:(statPenimbang/totalDocs)*100;
+                const pS = tot? (sSelesai/tot)*100 : 0;
+                const pG = tot? (sGantung/tot)*100 : 0;
+                const pL = tot? (sLaci/tot)*100 : 0;
+                const pP = tot? (sPenim/tot)*100 : 0;
 
                 return (
                     <div className="flex flex-col lg:flex-row h-full fade-in">
-                        <div className="w-full lg:w-[240px] bg-white border-r border-slate-200 p-4 flex flex-col gap-2 overflow-y-auto shrink-0">
-                            <h3 className="text-[10px] font-bold uppercase text-slate-400 mb-2 pl-2">Pilih Tim</h3>
-                            {teams.map(t => (
-                                <button key={t.id} onClick={() => setSelectedTeamId(t.id)} className={`text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-between items-center ${selectedTeamId===t.id?'bg-emerald-50 text-emerald-700':'text-slate-600 hover:bg-slate-50'}`}>
-                                    <span className="truncate">{t.name}</span>
-                                    {selectedTeamId===t.id&&<ChevronRight size={14}/>}
+                        {/* Internal Sidebar */}
+                        <div className="w-full lg:w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-2 overflow-y-auto">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-2">Pilih Dasbor Tim</p>
+                            {teams.map(t=>(
+                                <button key={t.id} onClick={()=>setSelectedTeam(t.id)} className={`text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center justify-between text-sm ${selectedTeam===t.id?'bg-slate-800 text-white shadow-md':'text-slate-600 hover:bg-slate-50 border border-slate-100 hover:border-slate-200'}`}>
+                                    <span className="flex items-center gap-3"><Icon name="Users" size={16} className={selectedTeam===t.id?'text-slate-300':'text-slate-400'}/> {t.name}</span>
+                                    {selectedTeam===t.id && <Icon name="ChevronRight" size={16}/>}
                                 </button>
                             ))}
                         </div>
-
-                        <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-50/50">
-                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-                                <div className="p-3 bg-sky-50 text-sky-600 rounded-xl"><BarChart3 size={24}/></div>
-                                <div><h2 className="text-xl font-bold text-slate-800">{getTeamName(selectedTeamId)}</h2><p className="text-sm text-slate-500">Dasbor Performa Laporan Dokumen</p></div>
+                        {/* Dasbor Area */}
+                        <div className="flex-1 p-4 md:p-8 space-y-6 overflow-y-auto bg-slate-50/50">
+                            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5">
+                                <div className="w-16 h-16 bg-sky-100 text-sky-600 rounded-2xl flex items-center justify-center shadow-inner"><Icon name="BarChart3" size={32}/></div>
+                                <div><h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">{teams.find(t=>t.id===selectedTeam)?.name}</h2><p className="text-sm font-semibold text-slate-500 mt-1">Analitik lengkap sirkulasi dokumen BTPA tim terkait.</p></div>
                             </div>
-                            
-                            {totalDocs === 0 ? (
-                                <div className="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200"><p className="font-semibold text-slate-600">Belum ada transaksi</p></div>
+
+                            {tot === 0 ? (
+                                <div className="bg-white p-12 text-center rounded-2xl border-2 border-dashed border-slate-200 text-slate-400"><Icon name="Activity" size={48} className="mx-auto mb-4 opacity-30"/><p className="text-lg font-bold text-slate-600">Belum ada transaksi</p></div>
                             ) : (
                                 <>
-                                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-2"><FileText size={16} className="text-slate-400"/><span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total</span></div>
-                                            <p className="text-2xl font-bold text-slate-800">{totalDocs}</p>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-2"><CheckCircle2 size={16} className="text-emerald-500"/><span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Selesai</span></div>
-                                            <p className="text-2xl font-bold text-slate-800">{statTerpakai}</p>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-2"><Inbox size={16} className="text-amber-500"/><span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Di Laci</span></div>
-                                            <p className="text-2xl font-bold text-slate-800">{statLaci}</p>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-2"><UserCheck size={16} className="text-indigo-500"/><span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Penimbang</span></div>
-                                            <p className="text-2xl font-bold text-slate-800">{statPenimbang}</p>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                            <div className="flex items-center gap-2 mb-2"><Activity size={16} className="text-slate-400"/><span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Kandang</span></div>
-                                            <p className="text-2xl font-bold text-slate-800">{statDialokasikan}</p>
-                                        </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+                                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden"><Icon name="FileText" size={80} className="absolute -right-4 -bottom-4 text-slate-50"/><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Total Dokumen</p><p className="text-3xl font-black text-slate-800 relative z-10">{tot}</p></div>
+                                        <div className="bg-emerald-500 text-white p-5 rounded-2xl shadow-md shadow-emerald-200 relative overflow-hidden"><Icon name="CheckCircle2" size={80} className="absolute -right-4 -bottom-4 text-emerald-400/50"/><p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mb-1 relative z-10">Selesai</p><p className="text-3xl font-black relative z-10">{sSelesai}</p></div>
+                                        <div className="bg-amber-500 text-white p-5 rounded-2xl shadow-md shadow-amber-200 relative overflow-hidden"><Icon name="Inbox" size={80} className="absolute -right-4 -bottom-4 text-amber-400/50"/><p className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-1 relative z-10">Di Laci</p><p className="text-3xl font-black relative z-10">{sLaci}</p></div>
+                                        <div className="bg-indigo-500 text-white p-5 rounded-2xl shadow-md shadow-indigo-200 relative overflow-hidden"><Icon name="UserCheck" size={80} className="absolute -right-4 -bottom-4 text-indigo-400/50"/><p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mb-1 relative z-10">Di Penimbang</p><p className="text-3xl font-black relative z-10">{sPenim}</p></div>
+                                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden"><Icon name="Activity" size={80} className="absolute -right-4 -bottom-4 text-slate-50"/><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Gantung</p><p className="text-3xl font-black text-slate-800 relative z-10">{sGantung}</p></div>
                                     </div>
-
-                                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                        <p className="text-sm font-bold text-slate-800 mb-4">Distribusi Status Dokumen</p>
-                                        <div className="h-6 w-full bg-slate-100 rounded-md overflow-hidden flex shadow-inner mb-4">
-                                            <div style={{width: `${pTerpakai}%`}} className="bg-emerald-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">{pTerpakai>5&&`${pTerpakai.toFixed(0)}%`}</div>
-                                            <div style={{width: `${pLaci}%`}} className="bg-amber-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">{pLaci>5&&`${pLaci.toFixed(0)}%`}</div>
-                                            <div style={{width: `${pPenimbang}%`}} className="bg-indigo-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">{pPenimbang>5&&`${pPenimbang.toFixed(0)}%`}</div>
-                                            <div style={{width: `${pDialokasikan}%`}} className="bg-slate-300 h-full flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden">{pDialokasikan>5&&`${pDialokasikan.toFixed(0)}%`}</div>
+                                    
+                                    <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm">
+                                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-lg text-slate-800">Distribusi Status</h3><span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded uppercase tracking-widest">100% Total Kapasitas</span></div>
+                                        <div className="h-10 flex rounded-xl overflow-hidden bg-slate-100 shadow-inner mb-6">
+                                            <div style={{width:`${pS}%`}} className="bg-emerald-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden transition-all">{pS>5&&`${pS.toFixed(0)}%`}</div>
+                                            <div style={{width:`${pL}%`}} className="bg-amber-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden transition-all">{pL>5&&`${pL.toFixed(0)}%`}</div>
+                                            <div style={{width:`${pP}%`}} className="bg-indigo-500 h-full flex items-center justify-center text-[10px] font-bold text-white overflow-hidden transition-all">{pP>5&&`${pP.toFixed(0)}%`}</div>
+                                            <div style={{width:`${pG}%`}} className="bg-slate-300 h-full flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden transition-all">{pG>5&&`${pG.toFixed(0)}%`}</div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-600">
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-emerald-500"></div>Selesai</div>
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-amber-500"></div>Di Laci</div>
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-500"></div>Penimbang</div>
+                                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-slate-300"></div>Gantung</div>
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-                                            <div className="p-4 border-b border-slate-100"><h3 className="font-bold text-sm text-slate-800">Riwayat Kandang</h3></div>
-                                            <div className="p-0 overflow-x-auto">
-                                                <table className="w-full text-left text-xs">
-                                                    <thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-2 font-medium">Kandang</th><th className="px-4 py-2 font-medium">Status</th><th className="px-4 py-2 font-medium text-center">Vol</th></tr></thead>
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {teamBatches.map(b => (
-                                                            <tr key={b.id}>
-                                                                <td className="px-4 py-3 font-semibold text-slate-700">{b.name}</td>
-                                                                <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-[10px] font-bold ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
-                                                                <td className="px-4 py-3 text-center font-bold">{documents.filter(d=>d.batchId===b.id).length}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                                            <div className="p-5 bg-slate-50 border-b border-slate-100"><h3 className="font-bold text-slate-800">Riwayat Kandang</h3></div>
+                                            <div className="overflow-x-auto flex-1">
+                                                <table className="w-full text-left text-sm"><thead className="bg-white border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest"><tr><th className="p-4">Kandang</th><th className="p-4">Tgl</th><th className="p-4">Sts</th></tr></thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {teamBatches.map(b=>(<tr key={b.id} className="hover:bg-slate-50"><td className="p-4 font-bold text-slate-700">{b.name}</td><td className="p-4 text-slate-500 font-semibold">{b.date}</td><td className="p-4"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${b.status==='AKTIF'?'bg-emerald-50 text-emerald-600 border-emerald-200':'bg-slate-100 text-slate-500 border-slate-200'}`}>{b.status}</span></td></tr>))}
+                                                </tbody></table>
                                             </div>
                                         </div>
-
-                                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-                                            <div className="p-4 border-b border-slate-100"><h3 className="font-bold text-sm text-slate-800">Log Dokumen</h3></div>
-                                            <div className="p-4">
-                                                <div className="flex flex-wrap gap-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
-                                                    {teamDocs.slice(0, visibleCount).map(d => {
-                                                        let c = 'bg-slate-50 border-slate-200 text-slate-500'; 
-                                                        if (d.status === 'TERPAKAI') c = 'bg-emerald-50 border-emerald-200 text-emerald-700';
-                                                        if (d.status === 'DIALOKASIKAN') c = 'bg-white border-slate-200 text-slate-700';
-                                                        if (d.status === 'DI_ADMIN') c = 'bg-amber-50 border-amber-200 text-amber-700';
-                                                        if (d.status === 'DI_PENIMBANG') c = 'bg-indigo-50 border-indigo-200 text-indigo-700';
-                                                        return <span key={d.id} className={`px-2 py-1 border rounded text-xs font-mono font-medium ${c}`}>#{d.number}</span>
+                                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col">
+                                            <div className="p-5 bg-slate-50 border-b border-slate-100"><h3 className="font-bold text-slate-800">Log Dokumen (Semua)</h3></div>
+                                            <div className="p-5 flex-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                <div className="flex flex-wrap gap-2">
+                                                    {tDocs.map(d=>{
+                                                        let color = 'bg-slate-50 border-slate-200 text-slate-500'; 
+                                                        if (d.status === 'TERPAKAI') color = 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm';
+                                                        if (d.status === 'DIALOKASIKAN') color = 'bg-white border-slate-200 text-slate-700 shadow-sm';
+                                                        if (d.status === 'DI_ADMIN') color = 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm';
+                                                        if (d.status === 'DI_PENIMBANG') color = 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm';
+                                                        return <span key={d.id} className={`px-2.5 py-1 border rounded text-xs font-mono font-bold cursor-default ${color}`} title={d.status}>#{d.number}</span>
                                                     })}
                                                 </div>
                                             </div>
@@ -999,140 +1196,139 @@
                 );
             };
 
-            // --- VIEW: GLOBAL SEARCH MODAL ---
-            const GlobalSearchModal = () => {
-                if (!isSearchOpen) return null;
-                return (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center z-[200] p-4 pt-16 fade-in" onClick={() => setIsSearchOpen(false)}>
-                        <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                            <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-                                <Search size={20} className="text-slate-400"/>
-                                <input ref={searchInputRef} type="text" placeholder="Ketik nomor BTPA..." className="flex-1 border-none outline-none font-semibold text-lg text-slate-800" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoFocus />
-                                <button onClick={() => setIsSearchOpen(false)} className="text-slate-400"><X size={20}/></button>
-                            </div>
-                            <div className="p-4 max-h-[60vh] overflow-y-auto bg-slate-50">
-                                {searchQuery.trim() === '' ? <p className="text-center text-sm text-slate-400 py-8">Ketik untuk mencari dokumen lintas tim dan laci.</p> : searchResults.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">Dokumen tidak ditemukan.</p> : (
-                                    <div className="space-y-2">
-                                        {searchResults.map(doc => {
-                                            let bc = 'bg-slate-100 text-slate-600', st = 'GANTUNG', loc = getBatchName(doc.batchId);
-                                            if (doc.status === 'TERPAKAI') { bc = 'bg-emerald-100 text-emerald-700'; st = 'SELESAI'; }
-                                            else if (doc.status === 'DI_ADMIN') { bc = 'bg-amber-100 text-amber-700'; st = 'LACI'; loc = 'Kantor'; }
-                                            else if (doc.status === 'DI_PENIMBANG') { bc = 'bg-indigo-100 text-indigo-700'; st = 'PENIMBANG'; loc = doc.penimbangName; }
-                                            return (
-                                                <div key={doc.id} className="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center shadow-sm">
-                                                    <div>
-                                                        <p className="font-mono font-bold text-slate-800">#{doc.number}</p>
-                                                        <p className="text-[10px] text-slate-500 uppercase mt-0.5">{getTeamName(doc.teamId)} • {loc}</p>
-                                                    </div>
-                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${bc}`}>{st}</span>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
-
-            // Autofocus
-            useEffect(() => { if (isSearchOpen && searchInputRef.current) setTimeout(() => searchInputRef.current.focus(), 50); }, [isSearchOpen]);
-
             return (
-                <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-900">
+                <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans text-slate-900 selection:bg-emerald-200">
                     
-                    {/* Mobile Header */}
-                    <div className="md:hidden bg-white border-b border-slate-200 p-3 flex justify-between items-center z-30 sticky top-0">
-                        <h1 className="font-bold text-lg flex items-center gap-2"><div className="bg-emerald-500 p-1.5 rounded-lg"><Activity size={16} className="text-white"/></div> BTPA Hub</h1>
-                        <div className="flex gap-2">
-                            <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Search size={18} /></button>
-                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-100 text-slate-600 rounded-lg">{isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}</button>
-                        </div>
+                    {/* Header Mobile */}
+                    <div className="md:hidden bg-slate-900 p-4 flex justify-between items-center border-b z-30 sticky top-0 shadow-sm">
+                        <h1 className="font-black text-xl flex items-center gap-2 text-white tracking-tight"><div className="bg-emerald-500 p-1.5 rounded-lg"><Icon name="Activity" size={20} className="text-white"/></div> BTPA Hub</h1>
+                        <button onClick={()=>setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-800 rounded-xl text-white"><Icon name={isMobileMenuOpen?'X':'Menu'} size={24}/></button>
                     </div>
 
                     {/* Sidebar */}
-                    <div className={`fixed inset-y-0 left-0 z-40 w-[260px] bg-white border-r border-slate-200 transform transition-transform duration-300 md:relative md:translate-x-0 flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        <div className="p-5 hidden md:block">
-                            <h1 className="font-bold text-xl text-slate-800 flex items-center gap-2"><div className="bg-emerald-500 p-2 rounded-xl text-white shadow-sm"><Activity size={20}/></div> BTPA Hub</h1>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
-                            <div className="mb-4 hidden md:block">
-                                <button onClick={() => setIsSearchOpen(true)} className="w-full bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"><Search size={16}/> Cepat Cari...</button>
+                    <div className={`fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 transform ${isMobileMenuOpen?'translate-x-0':'-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-2xl md:shadow-none`}>
+                        <div className="p-6 hidden md:block">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-emerald-500 p-2.5 rounded-xl text-white shadow-lg shadow-emerald-200"><Icon name="Activity" size={24}/></div>
+                                <h1 className="font-black text-2xl tracking-tight text-slate-800">BTPA Hub</h1>
                             </div>
+                        </div>
 
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4 md:mt-0">Siklus</p>
-                            <NavItem id="chick-in" label="Chick-in (Input)" icon={PlusCircle} />
-                            <NavItem id="proses-panen" label="Proses Panen" icon={RefreshCw} />
+                        {/* Search Quick Action */}
+                        <div className="px-5 mb-4 relative z-50">
+                            <div className="relative flex items-center">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Icon name="Search" size={16} className="text-slate-400" />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Pencarian Cepat..." 
+                                    value={globalSearch} 
+                                    onFocus={()=>setShowSearchBox(true)} 
+                                    onChange={e=>setGlobalSearch(e.target.value)} 
+                                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400 shadow-sm" 
+                                />
+                            </div>
                             
-                            <div className="my-4 border-t border-slate-100 mx-3"></div>
+                            {/* Hasil Pencarian Pop-up */}
+                            {showSearchBox && globalSearch && (
+                                <div className="absolute top-14 left-5 right-5 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 max-h-72 overflow-y-auto z-50">
+                                    <div className="flex justify-between items-center mb-2 px-2 pb-2 border-b border-slate-100">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HASIL PELACAKAN</span>
+                                        <button onClick={()=>{setShowSearchBox(false);setGlobalSearch('');}} className="text-slate-400 hover:text-slate-700 bg-slate-50 p-1 rounded-md transition-colors"><Icon name="X" size={14}/></button>
+                                    </div>
+                                    {searchResults.length === 0 ? (
+                                        <div className="text-center p-6">
+                                            <Icon name="SearchX" size={24} className="mx-auto text-slate-300 mb-2" />
+                                            <p className="text-xs text-slate-500 font-semibold">Nomor "{globalSearch}" tidak terdaftar di sistem.</p>
+                                        </div>
+                                    ) : searchResults.map(d => (
+                                        <div key={d.id} className="p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 mb-1 last:mb-0 transition-colors">
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <p className="font-mono font-bold text-base text-slate-800">#{d.number}</p>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest border ${d.status === 'TERPAKAI' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : d.status === 'DI_ADMIN' ? 'bg-amber-50 text-amber-600 border-amber-200' : d.status === 'DI_PENIMBANG' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-slate-50 text-slate-600 border-slate-200 shadow-sm'}`}>
+                                                    {d.status === 'DIALOKASIKAN' ? 'LAPANGAN' : d.status.replace('_', ' ')}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col gap-1 mt-2">
+                                                <p className="text-[10px] text-slate-500 font-bold flex items-center gap-1.5"><Icon name="Users" size={12} className="text-slate-400"/> Pemilik: {d.teamName}</p>
+                                                {d.status === 'DI_PENIMBANG' && d.penimbangName && <p className="text-[10px] text-indigo-600 font-bold flex items-center gap-1.5"><Icon name="UserCheck" size={12}/> Dibawa: {d.penimbangName}</p>}
+                                                {d.status === 'DIALOKASIKAN' && d.batchName && <p className="text-[10px] text-slate-600 font-bold flex items-center gap-1.5"><Icon name="FileText" size={12}/> Posisi: {d.batchName}</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-4 space-y-1 custom-scrollbar">
+                            <p className="px-3 text-[10px] font-bold text-slate-400 mt-2 mb-2 uppercase tracking-widest">SIKLUS</p>
+                            <button onClick={()=>{setActiveMenu('chick-in');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='chick-in'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="PlusCircle" size={18}/> Chick-in (Input)</button>
+                            <button onClick={()=>{setActiveMenu('proses-panen');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='proses-panen'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="RefreshCw" size={18}/> Proses Panen</button>
+                            <button onClick={()=>{setActiveMenu('scan-massal');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='scan-massal'?'bg-indigo-50 text-indigo-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="CheckSquare" size={18}/> Scan Massal (Global)</button>
                             
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Inventaris</p>
-                            <NavItem id="input-laci" label="Tambah Stok" icon={Archive} />
-                            <NavItem id="laci-admin" label="Laci & PPL" icon={Inbox} />
-                            <NavItem id="monitor-tim" label="Monitor Tim" icon={BarChart3} />
+                            <p className="px-3 text-[10px] font-bold text-slate-400 mt-6 mb-2 uppercase tracking-widest">INVENTARIS</p>
+                            <button onClick={()=>{setActiveMenu('input-laci');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='input-laci'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="Archive" size={18}/> Tambah Stok Laci</button>
+                            <button onClick={()=>{setActiveMenu('laci-admin');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='laci-admin'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="Inbox" size={18}/> Laci & PPL</button>
+                            <button onClick={()=>{setActiveMenu('monitor-tim');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='monitor-tim'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="BarChart3" size={18}/> Monitor Tim</button>
                             
-                            <div className="my-4 border-t border-slate-100 mx-3"></div>
-                            
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Sistem</p>
-                            <NavItem id="master-tim" label="Master Tim" icon={Users} />
-                            <NavItem id="database" label="Backup Data" icon={Database} />
+                            <p className="px-3 text-[10px] font-bold text-slate-400 mt-6 mb-2 uppercase tracking-widest">SISTEM</p>
+                            <button onClick={()=>{setActiveMenu('master-tim');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='master-tim'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="Users" size={18}/> Master Tim</button>
+                            <button onClick={()=>{setActiveMenu('database');closeMobileMenu()}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeMenu==='database'?'bg-emerald-50 text-emerald-600':'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}><Icon name="Database" size={18}/> Backup & Restore</button>
                         </div>
                         
-                        <div className="p-4 border-t border-slate-100">
-                            <div className="text-center">
-                                <p className="text-xs font-semibold text-slate-600">Sistem BTPA v2.0</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">&copy; {new Date().getFullYear()} Teuku M. Hafidh</p>
+                        {/* Copyright Area */}
+                        <div className="p-6 border-t border-slate-100">
+                            <div className="bg-slate-50 p-4 rounded-xl text-center border border-slate-100">
+                                <p className="text-xs font-bold text-slate-600 tracking-tight">Sistem BTPA v2.0</p>
+                                <p className="text-[10px] font-semibold text-slate-400 mt-1">&copy; {new Date().getFullYear()} Teuku Muhammad Hafidh Rafif</p>
                             </div>
                         </div>
                     </div>
 
-                    {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 z-30 md:hidden" onClick={closeMobileMenu} />}
+                    {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 md:hidden" onClick={closeMobileMenu}></div>}
 
-                    {/* Main Content */}
-                    <div className="flex-1 overflow-y-auto bg-slate-50 md:h-screen relative custom-scrollbar">
+                    {/* Main Content Render */}
+                    <div className="flex-1 overflow-y-auto h-screen relative custom-scrollbar">
                         {activeMenu === 'master-tim' && <MasterTimView />}
                         {activeMenu === 'database' && <DatabaseView />}
                         {activeMenu === 'input-laci' && <InputLaciView />}
                         {activeMenu === 'chick-in' && <ChickInView />}
                         {activeMenu === 'proses-panen' && <ProsesPanenView />}
+                        {activeMenu === 'scan-massal' && <ScanMassalView />}
                         {activeMenu === 'laci-admin' && <LaciAdminView />}
                         {activeMenu === 'monitor-tim' && <MonitorTimView />}
                     </div>
 
-                    <GlobalSearchModal />
-
-                    {/* Alert Modal */}
+                    {/* Global Custom Alert Modal */}
                     {alertConfig.isOpen && (
-                        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[150] p-4 fade-in">
-                            <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl text-center">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${alertConfig.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                    {alertConfig.type === 'success' ? <CheckCircle2 size={32} /> : <XCircle size={32} />}
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 fade-in">
+                            <div className={`bg-white rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl border-t-8 ${alertConfig.type === 'success' ? 'border-emerald-500' : 'border-red-500'}`}>
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ${alertConfig.type === 'success' ? 'bg-emerald-100 text-emerald-500' : 'bg-red-100 text-red-500'}`}>
+                                    <Icon name={alertConfig.type === 'success' ? 'CheckCircle2' : 'XCircle'} size={40} />
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-800 mb-2">{alertConfig.title}</h3>
-                                <p className="text-sm text-slate-500 mb-6">{alertConfig.message}</p>
-                                <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-2.5 rounded-lg text-sm font-semibold transition-colors ${alertConfig.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                                    Tutup Pesan
-                                </button>
+                                <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">{alertConfig.title}</h3>
+                                <p className="text-slate-500 mb-8 font-medium leading-relaxed text-sm whitespace-pre-line">{alertConfig.message}</p>
+                                <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-all ${alertConfig.type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' : 'bg-red-500 hover:bg-red-600 shadow-red-200'}`}>Tutup Pesan</button>
                             </div>
                         </div>
                     )}
 
-                    {/* Toasts */}
-                    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-                        {toasts.map(toast => (
-                            <div key={toast.id} className={`pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium fade-in ${toast.type === 'success' ? 'bg-slate-800 text-white' : 'bg-red-600 text-white'}`}>
-                                {toast.type === 'success' ? <CheckCircle2 size={18} className="text-emerald-400" /> : <AlertCircle size={18} />}
-                                {toast.message}
+                    {/* Global Toasts */}
+                    <div className="fixed top-4 right-4 z-[300] flex flex-col gap-3 pointer-events-none">
+                        {toasts.map(t => (
+                            <div key={t.id} className={`pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-xl fade-in border ${t.type === 'success' ? 'bg-white text-emerald-700 border-emerald-100' : 'bg-red-600 text-white border-transparent'}`}>
+                                <Icon name={t.type === 'success' ? 'CheckCircle2' : 'AlertCircle'} size={20} className={t.type === 'success' ? "text-emerald-500" : "text-white"}/>
+                                <p className="text-sm font-bold tracking-wide">{t.message}</p>
                             </div>
                         ))}
                     </div>
+
                 </div>
             );
-        }
+        };
 
-        const root = createRoot(document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
