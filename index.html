@@ -4,31 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Manajemen BTPA</title>
-    
-    <!-- Memanggil Tailwind CSS untuk Desain -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Memanggil Babel untuk menerjemahkan React JSX di browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Custom CSS untuk Scrollbar -->
     <style>
-        body { margin: 0; padding: 0; background-color: #f8fafc; }
+        body { margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Inter', sans-serif;}
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        /* Animasi Transisi Halus */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
-    <!-- Tempat aplikasi React akan dimuat -->
     <div id="root"></div>
 
-    <!-- Kode React Aplikasi Utama -->
     <script type="text/babel" data-type="module">
-        // Import React & Ikon dari CDN Server
         import React, { useState, useEffect, useMemo, useRef } from 'https://esm.sh/react@18.2.0';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
         import { 
@@ -41,31 +35,30 @@
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
-        // Initial Data Dummy
-        const initialTeams = [
-            { id: 't1', name: 'Agus - Budi', ppl: 'Agus', penimbang: 'Budi' },
-            { id: 't2', name: 'Cipto - Doni', ppl: 'Cipto', penimbang: 'Doni' }
-        ];
-
+        // --- KOMPONEN UTAMA APLIKASI ---
         function App() {
-            // --- Global State ---
             const [activeMenu, setActiveMenu] = useState('chick-in');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-            const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'success' });
             const [toasts, setToasts] = useState([]);
+            const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'success' });
             
-            // --- Data Domain State ---
-            const [teams, setTeams] = useState(initialTeams);
+            // State untuk Pencarian Global
+            const [isSearchOpen, setIsSearchOpen] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
+            const searchInputRef = useRef(null);
+            
+            // Database Dummy bawaan agar tidak kosong melompong saat awal dibuka
+            const [teams, setTeams] = useState([
+                { id: 't1', name: 'Agus - Budi', ppl: 'Agus', penimbang: 'Budi' },
+                { id: 't2', name: 'Cipto - Doni', ppl: 'Cipto', penimbang: 'Doni' }
+            ]);
             const [batches, setBatches] = useState([]); 
             const [documents, setDocuments] = useState([]); 
             
-            // --- Global Helpers ---
             const addToast = (message, type = 'success') => {
                 const id = generateId();
                 setToasts(prev => [...prev, { id, message, type }]);
-                setTimeout(() => {
-                    setToasts(prev => prev.filter(t => t.id !== id));
-                }, 3000);
+                setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
             };
 
             const fireAlert = (title, message, type = 'success') => {
@@ -74,26 +67,35 @@
 
             const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
+            // Helper untuk Global Search
+            const getTeamName = (id) => teams.find(t => t.id === id)?.name || 'Tim Dihapus';
+            const getBatchName = (id) => batches.find(b => b.id === id)?.name || 'Kandang Tidak Diketahui';
+
+            // Hasil Pencarian Live
+            const searchResults = useMemo(() => {
+                if (!searchQuery.trim()) return [];
+                return documents
+                    .filter(d => d.number.includes(searchQuery))
+                    .slice(0, 10); // Batasi 10 hasil agar tidak nge-lag
+            }, [searchQuery, documents]);
+
             const NavItem = ({ id, label, icon: Icon }) => {
                 const isActive = activeMenu === id;
                 return (
                     <button
                         onClick={() => { setActiveMenu(id); closeMobileMenu(); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
                             isActive 
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 font-semibold tracking-wide translate-x-1' 
-                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 font-medium hover:translate-x-1'
+                                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 font-semibold tracking-wide' 
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 font-medium'
                         }`}
                     >
-                        <Icon size={20} className={`transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-500"}`} />
+                        <Icon size={20} className={isActive ? "text-white" : "text-slate-400"} />
                         <span>{label}</span>
                     </button>
                 );
             };
 
-            // ==========================================
-            // COMPONENT: MASTER TIM
-            // ==========================================
             const MasterTimView = () => {
                 const [pplName, setPplName] = useState('');
                 const [penimbangName, setPenimbangName] = useState('');
@@ -102,145 +104,154 @@
                 const handleAddTeam = (e) => {
                     e.preventDefault();
                     if (!pplName.trim() || !penimbangName.trim()) {
-                        fireAlert('Validasi Gagal', 'Nama PPL dan Nama Penimbang wajib diisi keduanya.', 'error');
-                        return;
+                        fireAlert('Validasi Gagal', 'Nama PPL dan Nama Penimbang wajib diisi keduanya.', 'error'); return;
                     }
                     const combinedName = `${pplName.trim()} - ${penimbangName.trim()}`;
                     if (teams.some(t => t.name.toLowerCase() === combinedName.toLowerCase())) {
-                        fireAlert('Data Duplikat', 'Kombinasi Tim (PPL & Penimbang) ini sudah terdaftar di sistem!', 'error');
-                        return;
+                        fireAlert('Data Duplikat', 'Kombinasi Tim ini sudah terdaftar!', 'error'); return;
                     }
                     setTeams([...teams, { id: generateId(), name: combinedName, ppl: pplName.trim(), penimbang: penimbangName.trim() }]);
                     setPplName(''); setPenimbangName('');
-                    addToast(`Tim ${combinedName} berhasil ditambahkan!`, 'success');
+                    fireAlert('Berhasil', `Tim ${combinedName} berhasil ditambahkan!`, 'success');
                 };
 
                 const handleDeleteTeam = (id) => {
                     if (batches.some(b => b.teamId === id) || documents.some(d => d.teamId === id)) {
-                        fireAlert('Akses Ditolak', 'Tim ini sedang terikat pada data kandang atau memiliki dokumen BTPA.', 'error');
-                        return;
+                        fireAlert('Akses Ditolak', 'Tim sedang terikat pada data kandang/dokumen.', 'error'); return;
                     }
                     setTeams(teams.filter(t => t.id !== id));
-                    addToast('Tim berhasil dihapus secara permanen', 'success');
+                    addToast('Tim berhasil dihapus');
                 };
 
                 const handleUpdateTeam = (e) => {
                     e.preventDefault();
                     if (!editModal.ppl.trim() || !editModal.penimbang.trim()) {
-                        fireAlert('Validasi Gagal', 'Nama PPL dan Nama Penimbang wajib diisi.', 'error');
-                        return;
+                        fireAlert('Validasi Gagal', 'Nama PPL dan Penimbang wajib diisi.', 'error'); return;
                     }
                     const combinedName = `${editModal.ppl.trim()} - ${editModal.penimbang.trim()}`;
                     if (teams.some(t => t.id !== editModal.id && t.name.toLowerCase() === combinedName.toLowerCase())) {
-                        fireAlert('Data Duplikat', 'Kombinasi Tim ini sudah terdaftar!', 'error');
-                        return;
+                        fireAlert('Data Duplikat', 'Kombinasi Tim ini sudah terdaftar!', 'error'); return;
                     }
                     setTeams(teams.map(t => t.id === editModal.id ? { ...t, name: combinedName, ppl: editModal.ppl.trim(), penimbang: editModal.penimbang.trim() } : t));
                     setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' });
-                    addToast('Data tim berhasil diperbarui!', 'success');
+                    addToast('Data tim berhasil diperbarui!');
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
-                        <div className="flex items-center gap-4 mb-8">
+                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
+                        <div className="flex items-center gap-4 mb-6">
                             <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Users className="text-emerald-600" size={28}/></div>
                             <div>
-                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Master Data Tim</h2>
-                                <p className="text-slate-500 font-medium mt-1">Kelola daftar tim pelaksana (kombinasi PPL & Penimbang).</p>
+                                <h2 className="text-2xl font-bold text-slate-800">Master Data Tim</h2>
+                                <p className="text-slate-500 text-sm mt-1">Kelola daftar kombinasi PPL & Penimbang.</p>
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200/60 hover:shadow-md transition-all">
-                            <form onSubmit={handleAddTeam} className="flex flex-col gap-6">
+                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+                            <form onSubmit={handleAddTeam} className="flex flex-col gap-4">
                                 <div className="flex flex-col md:flex-row items-center gap-4">
                                     <div className="w-full flex-1 space-y-2">
                                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama PPL</label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Briefcase size={20} className="text-slate-400" /></div>
-                                            <input type="text" value={pplName} onChange={(e) => setPplName(e.target.value)} placeholder="Ketik nama PPL..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-700 font-semibold text-lg" />
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Briefcase size={18} className="text-slate-400" /></div>
+                                            <input type="text" value={pplName} onChange={(e) => setPplName(e.target.value)} placeholder="Ketik nama PPL..." className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 font-semibold" />
                                         </div>
                                     </div>
-                                    <div className="hidden md:flex text-slate-300 font-black text-3xl mt-6">-</div>
+                                    <div className="hidden md:flex text-slate-300 font-black text-xl mt-6">-</div>
                                     <div className="w-full flex-1 space-y-2">
                                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama Penimbang</label>
                                         <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><UserCheck size={20} className="text-slate-400" /></div>
-                                            <input type="text" value={penimbangName} onChange={(e) => setPenimbangName(e.target.value)} placeholder="Ketik nama Penimbang..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-700 font-semibold text-lg" />
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><UserCheck size={18} className="text-slate-400" /></div>
+                                            <input type="text" value={penimbangName} onChange={(e) => setPenimbangName(e.target.value)} placeholder="Ketik nama Penimbang..." className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 font-semibold" />
                                         </div>
                                     </div>
                                     <div className="w-full md:w-auto md:mt-6">
-                                        <button type="submit" className="w-full h-[60px] bg-slate-800 text-white px-8 rounded-2xl hover:bg-slate-900 flex items-center justify-center gap-2 font-bold transition-all shadow-lg hover:-translate-y-0.5 active:scale-95 shrink-0">
-                                            <PlusCircle size={22} /> Tambahkan
+                                        <button type="submit" className="w-full bg-slate-800 text-white px-8 py-3.5 rounded-xl hover:bg-slate-900 flex items-center justify-center gap-2 font-semibold active:scale-95 transition-all shadow-sm">
+                                            <PlusCircle size={18} /> Tambahkan
                                         </button>
                                     </div>
                                 </div>
+                                {(pplName || penimbangName) && (
+                                    <div className="mt-2 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                                        <CheckCircle2 size={20} className="text-emerald-500" />
+                                        <span className="text-sm font-bold text-emerald-700">Preview Tim:</span>
+                                        <span className="bg-white px-3 py-1 rounded-lg border border-emerald-200 shadow-sm font-black text-slate-800 tracking-tight">
+                                            {pplName || 'PPL'} <span className="text-slate-300 mx-1">-</span> {penimbangName || 'Penimbang'}
+                                        </span>
+                                    </div>
+                                )}
                             </form>
                         </div>
 
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse min-w-[600px]">
+                                <table className="w-full text-left border-collapse min-w-[500px]">
                                     <thead>
-                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-widest font-bold">
-                                            <th className="px-8 py-5">Profil Tim (PPL - Penimbang)</th>
-                                            <th className="px-8 py-5 text-right">Manajemen</th>
+                                        <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider font-bold">
+                                            <th className="px-6 py-4">Profil Tim</th>
+                                            <th className="px-6 py-4 text-right">Manajemen</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100/80">
-                                        {teams.map(team => (
-                                            <tr key={team.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 flex items-center justify-center text-xl font-black shadow-inner shrink-0">
-                                                            {team.name.charAt(0).toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="text-xl font-black text-slate-800">{team.name}</h3>
-                                                            <div className="flex items-center gap-3 mt-1.5 text-xs font-bold uppercase tracking-wider">
-                                                                <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md flex items-center gap-1.5"><Briefcase size={14}/> {team.ppl || 'N/A'}</span>
-                                                                <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md flex items-center gap-1.5"><UserCheck size={14}/> {team.penimbang || 'N/A'}</span>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {teams.length === 0 ? (
+                                           <tr><td colSpan="2" className="p-8 text-center text-slate-400">Belum ada tim terdaftar.</td></tr>
+                                        ) : (
+                                            teams.map(team => (
+                                                <tr key={team.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg font-black shrink-0 shadow-inner">
+                                                                {team.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="font-bold text-slate-800">{team.name}</h3>
+                                                                <div className="flex items-center gap-2 mt-1 text-[10px] font-bold uppercase tracking-wider">
+                                                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded flex items-center gap-1"><Briefcase size={12}/> {team.ppl || 'N/A'}</span>
+                                                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded flex items-center gap-1"><UserCheck size={12}/> {team.penimbang || 'N/A'}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-5 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button onClick={() => setEditModal({ isOpen: true, id: team.id, ppl: team.ppl || '', penimbang: team.penimbang || '' })} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100">
-                                                            <Edit size={20} />
-                                                        </button>
-                                                        <button onClick={() => handleDeleteTeam(team.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-3 rounded-xl transition-all shadow-sm border border-transparent hover:border-red-100">
-                                                            <Trash2 size={20} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => setEditModal({ isOpen: true, id: team.id, ppl: team.ppl || '', penimbang: team.penimbang || '' })} className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg transition-all bg-white hover:bg-indigo-50 border border-transparent hover:border-indigo-100" title="Edit">
+                                                                <Edit size={18} />
+                                                            </button>
+                                                            <button onClick={() => handleDeleteTeam(team.id)} className="text-slate-400 hover:text-red-600 p-2 rounded-lg transition-all bg-white hover:bg-red-50 border border-transparent hover:border-red-100" title="Hapus">
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
+                        {/* Modal Edit */}
                         {editModal.isOpen && (
-                            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-                                <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                                    <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                        <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3"><Edit size={24} className="text-indigo-600"/> Edit Data Tim</h3>
-                                        <button onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Edit size={20} className="text-indigo-600"/> Edit Data Tim</h3>
+                                        <button onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="text-slate-400 hover:text-slate-700 bg-white p-1 rounded-full border"><X size={20}/></button>
                                     </div>
                                     <form onSubmit={handleUpdateTeam}>
-                                        <div className="p-8 space-y-6">
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Ubah Nama PPL</label>
-                                                <input type="text" value={editModal.ppl} onChange={(e) => setEditModal({...editModal, ppl: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-lg text-slate-800 font-semibold" />
+                                        <div className="p-6 space-y-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nama PPL</label>
+                                                <input type="text" value={editModal.ppl} onChange={(e) => setEditModal({...editModal, ppl: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-semibold text-slate-700" />
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Ubah Nama Penimbang</label>
-                                                <input type="text" value={editModal.penimbang} onChange={(e) => setEditModal({...editModal, penimbang: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-lg text-slate-800 font-semibold" />
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nama Penimbang</label>
+                                                <input type="text" value={editModal.penimbang} onChange={(e) => setEditModal({...editModal, penimbang: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-semibold text-slate-700" />
                                             </div>
                                         </div>
-                                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                                            <button type="button" onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
-                                            <button type="submit" className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan</button>
+                                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                                            <button type="button" onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="px-6 py-2.5 font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100">Batal</button>
+                                            <button type="submit" className="px-6 py-2.5 font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 shadow-lg active:scale-95">Simpan</button>
                                         </div>
                                     </form>
                                 </div>
@@ -250,9 +261,6 @@
                 );
             };
 
-            // ==========================================
-            // COMPONENT: DATABASE (BACKUP/RESTORE)
-            // ==========================================
             const DatabaseView = () => {
                 const fileInputRef = useRef(null);
                 const [restoreModal, setRestoreModal] = useState({ isOpen: false, data: null });
@@ -266,7 +274,7 @@
                     a.href = url;
                     a.download = `backup_btpa_${new Date().toISOString().slice(0,10)}.json`;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                    addToast('File backup berhasil diunduh!', 'success');
+                    fireAlert('Sukses', 'File backup berhasil diunduh ke komputer Anda!', 'success');
                 };
 
                 const handleFileChange = (e) => {
@@ -275,9 +283,9 @@
                     reader.onload = (event) => {
                         try {
                             const data = JSON.parse(event.target.result);
-                            if (data.teams && data.batches && data.documents) { setRestoreModal({ isOpen: true, data: data }); } 
-                            else { fireAlert('Format Salah', 'File backup tidak valid atau rusak.', 'error'); }
-                        } catch (error) { fireAlert('Error', 'Gagal membaca file. Pastikan berformat JSON.', 'error'); }
+                            if (data.teams && data.batches && data.documents) setRestoreModal({ isOpen: true, data: data });
+                            else fireAlert('Gagal', 'Format file backup tidak valid!', 'error');
+                        } catch (error) { fireAlert('Gagal', 'Gagal membaca file json.', 'error'); }
                     };
                     reader.readAsText(file); e.target.value = null;
                 };
@@ -285,48 +293,65 @@
                 const confirmRestore = () => {
                     if (restoreModal.data) {
                         setTeams(restoreModal.data.teams); setBatches(restoreModal.data.batches); setDocuments(restoreModal.data.documents);
-                        addToast('Sistem berhasil dipulihkan!', 'success');
+                        fireAlert('Sukses', 'Sistem berhasil dipulihkan dari file backup!', 'success');
                     }
                     setRestoreModal({ isOpen: false, data: null });
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
-                        <div className="flex items-center gap-4 mb-8">
+                    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 fade-in">
+                        <div className="flex items-center gap-4 mb-6">
                             <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Database className="text-emerald-600" size={28}/></div>
-                            <div>
-                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Database Sistem</h2>
-                                <p className="text-slate-500 font-medium mt-1">Simpan cadangan data (Backup) atau pulihkan dari file (Restore).</p>
-                            </div>
+                            <div><h2 className="text-2xl font-bold text-slate-800">Backup & Restore</h2><p className="text-slate-500 text-sm mt-1">Simpan cadangan data dan pulihkan sistem.</p></div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200/60 text-center flex flex-col items-center justify-center space-y-4 hover:shadow-md hover:border-emerald-200 transition-all">
-                                <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center shadow-inner"><Download size={48} /></div>
-                                <h3 className="text-2xl font-black text-slate-800">Unduh Backup</h3>
-                                <p className="text-slate-500 font-medium mb-4">Simpan seluruh data ke komputer format .json.</p>
-                                <button onClick={handleBackup} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-slate-900 active:scale-95 shadow-lg flex justify-center gap-2"><Download size={20} /> Ekspor Data</button>
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center hover:border-emerald-300 transition-colors">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4"><Download size={32} /></div>
+                                <h3 className="text-lg font-bold text-slate-800">Backup Data</h3>
+                                <p className="text-slate-500 text-sm mt-2 mb-6">Unduh data ke komputer format .json.</p>
+                                <button onClick={handleBackup} className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 flex items-center justify-center gap-2 shadow-md active:scale-95"><Download size={18} /> Unduh File</button>
                             </div>
-
-                            <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200/60 text-center flex flex-col items-center justify-center space-y-4 hover:shadow-md hover:border-amber-200 transition-all">
-                                <div className="w-24 h-24 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center shadow-inner"><Upload size={48} /></div>
-                                <h3 className="text-2xl font-black text-slate-800">Restore Data</h3>
-                                <p className="text-slate-500 font-medium mb-4">Pulihkan dari file backup. <span className="text-red-500">Akan menimpa data saat ini.</span></p>
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center hover:border-amber-300 transition-colors">
+                                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4"><Upload size={32} /></div>
+                                <h3 className="text-lg font-bold text-slate-800">Restore Data</h3>
+                                <p className="text-slate-500 text-sm mt-2 mb-6">Pulihkan dari file. Akan menimpa data saat ini.</p>
                                 <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                                <button onClick={() => fileInputRef.current?.click()} className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 active:scale-95 shadow-lg flex justify-center gap-2"><Upload size={20} /> Impor File</button>
+                                <button onClick={() => fileInputRef.current?.click()} className="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 flex items-center justify-center gap-2 shadow-md active:scale-95"><Upload size={18} /> Pilih File</button>
                             </div>
                         </div>
 
-                        {/* Modal Restore */}
+                        <div className="mt-8 pt-8 border-t border-slate-200">
+                            <div className="bg-red-50 p-6 rounded-2xl border border-red-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div><h3 className="text-lg font-bold text-red-800 flex items-center gap-2"><AlertTriangle size={20} className="text-red-600" /> Reset Sistem</h3><p className="text-red-600/80 text-sm">Hapus seluruh data secara permanen.</p></div>
+                                <button onClick={() => setResetModal({ isOpen: true, keyword: '' })} className="w-full md:w-auto px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 flex items-center justify-center gap-2 shadow-md active:scale-95 shrink-0"><Trash2 size={18} /> Kosongkan Data</button>
+                            </div>
+                        </div>
+
                         {restoreModal.isOpen && (
-                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-                                <div className="bg-white rounded-[2rem] max-w-md w-full p-8 shadow-2xl animate-in zoom-in-95">
-                                    <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><AlertTriangle size={36} /></div>
-                                    <h3 className="text-3xl font-black text-center text-slate-800 mb-2">Timpa Data?</h3>
-                                    <p className="text-center text-slate-500 mb-8 font-medium">Memulihkan data akan menghapus seluruh data saat ini. Lanjutkan?</p>
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl text-center">
+                                    <div className="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner"><AlertTriangle size={32} /></div>
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">Timpa Data Sistem?</h3>
+                                    <p className="text-slate-500 text-sm mb-6">Seluruh data yang ada saat ini akan dihapus dan diganti dari file backup. Lanjutkan?</p>
                                     <div className="flex gap-3">
-                                        <button onClick={() => setRestoreModal({ isOpen: false, data: null })} className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200">Batal</button>
-                                        <button onClick={confirmRestore} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black hover:bg-amber-600 shadow-lg active:scale-95">Pulihkan</button>
+                                        <button onClick={() => setRestoreModal({ isOpen: false, data: null })} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200">Batal</button>
+                                        <button onClick={confirmRestore} className="flex-1 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 shadow-md">Ya, Pulihkan</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {resetModal.isOpen && (
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border-t-8 border-red-500 text-center">
+                                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner"><Trash2 size={32} /></div>
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">Peringatan Bahaya</h3>
+                                    <p className="text-slate-500 text-sm mb-4">Ketik <strong className="text-red-600 bg-red-50 px-2 py-0.5 rounded font-mono">HAPUS</strong> untuk mengonfirmasi reset total.</p>
+                                    <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-center font-bold tracking-widest mb-6 text-lg" value={resetModal.keyword} onChange={(e) => setResetModal({...resetModal, keyword: e.target.value.toUpperCase()})} placeholder="Ketik HAPUS"/>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setResetModal({ isOpen: false, keyword: '' })} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200">Batal</button>
+                                        <button onClick={() => { if(resetModal.keyword==='HAPUS'){ setTeams([]); setBatches([]); setDocuments([]); setResetModal({isOpen:false,keyword:''}); fireAlert('Sukses','Semua data telah dikosongkan.','success'); } else { addToast('Kata kunci salah!','error'); } }} disabled={resetModal.keyword !== 'HAPUS'} className="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 shadow-md active:scale-95">Eksekusi</button>
                                     </div>
                                 </div>
                             </div>
@@ -335,9 +360,6 @@
                 );
             };
 
-            // ==========================================
-            // COMPONENT: INPUT LACI ADMIN
-            // ==========================================
             const InputLaciView = () => {
                 const [teamId, setTeamId] = useState('');
                 const [ranges, setRanges] = useState([{ from: '', to: '' }]);
@@ -348,6 +370,18 @@
                     if (!isNaN(from) && !isNaN(to) && from <= to) return acc + (to - from + 1); return acc;
                 }, 0);
 
+                const previewNumbers = useMemo(() => {
+                    let nums = [];
+                    for (const range of ranges) {
+                        const from = parseInt(range.from); const to = parseInt(range.to);
+                        if (!isNaN(from) && !isNaN(to) && from <= to) {
+                            for (let i = from; i <= to; i++) { nums.push(i.toString()); if(nums.length >= 100) break; }
+                        }
+                        if(nums.length >= 100) break;
+                    }
+                    return nums;
+                }, [ranges]);
+
                 const conflictError = useMemo(() => {
                     if (!teamId) return null;
                     for (const range of ranges) {
@@ -357,7 +391,8 @@
                             const numStr = i.toString();
                             const existing = documents.find(d => d.number === numStr);
                             if (existing && existing.teamId !== teamId) {
-                                return { number: numStr, owner: teams.find(t => t.id === existing.teamId)?.name || 'Tim Lain' };
+                                const ownerTeam = teams.find(t => t.id === existing.teamId)?.name || 'Tim Lain';
+                                return { number: numStr, owner: ownerTeam };
                             }
                         }
                     }
@@ -380,97 +415,141 @@
                                 }
                             }
                         }
+                        if (newDocs.length === 0) { setIsGenerating(false); return fireAlert('Gagal', 'Nomor tidak valid/sudah ada di laci tim ini.', 'error'); }
                         setDocuments([...documents, ...newDocs]);
-                        fireAlert('Stok Laci Berhasil', `${newDocs.length} dokumen dimasukkan ke Laci.`, 'success');
-                        setTeamId(''); setRanges([{ from: '', to: '' }]);
-                        setIsGenerating(false);
-                    }, 300);
+                        fireAlert('Sukses', `${newDocs.length} dokumen ditambahkan ke Laci Admin tim terkait.`, 'success');
+                        setTeamId(''); setRanges([{ from: '', to: '' }]); setIsGenerating(false);
+                    }, 50);
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
-                        <div className="flex items-center gap-4 mb-8">
+                    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 fade-in">
+                        <div className="flex items-center gap-4 mb-6">
                             <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Archive className="text-amber-600" size={28}/></div>
-                            <div>
-                                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Tambah Stok Laci</h2>
-                                <p className="text-slate-500 font-medium mt-1">Masukkan dokumen BTPA baru langsung ke gudang tanpa kandang.</p>
-                            </div>
+                            <div><h2 className="text-2xl font-bold text-slate-800">Tambah Stok Laci</h2><p className="text-slate-500 text-sm mt-1">Masukkan dokumen baru langsung ke gudang tanpa kandang.</p></div>
                         </div>
 
-                        <div className="bg-white p-6 md:p-10 rounded-[2rem] shadow-sm border border-slate-200/60 space-y-8">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Tim Penerima</label>
-                                <select className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-semibold text-slate-700 text-lg" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Pilih Tim Pemilik Laci</label>
+                                <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-semibold text-slate-700" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
                                     <option value="">-- Pilih Tim --</option>
                                     {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                             </div>
 
                             <div className="space-y-4">
-                                {ranges.map((range, idx) => (
-                                    <div key={idx} className="flex flex-col md:flex-row gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200/60">
-                                        <div className="w-full md:flex-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mulai Nomor</label>
-                                            <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800" value={range.from} onChange={(e) => { const r = [...ranges]; r[idx].from = e.target.value; setRanges(r); }} />
+                                {ranges.map((range, idx) => {
+                                    const fromVal = parseInt(range.from); const toVal = parseInt(range.to);
+                                    const rangeCount = (!isNaN(fromVal) && !isNaN(toVal) && fromVal <= toVal) ? (toVal - fromVal + 1) : 0;
+                                    return (
+                                        <div key={idx} className="flex flex-col xl:flex-row items-start xl:items-end gap-3 md:gap-4 bg-slate-50/50 p-4 md:p-5 rounded-xl border border-slate-200/60 group hover:border-amber-200 transition-colors">
+                                            <div className="w-full xl:flex-1">
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Mulai Nomor</label>
+                                                <input type="number" placeholder="Contoh: 1001" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700 shadow-sm" value={range.from} onChange={(e) => { const r = [...ranges]; r[idx].from = e.target.value; setRanges(r); }} />
+                                            </div>
+                                            <div className="hidden xl:block text-slate-300 font-bold text-xl pb-3">-</div>
+                                            <div className="w-full xl:flex-1">
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sampai Nomor</label>
+                                                <input type="number" placeholder="Contoh: 1005" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-mono text-lg font-bold tracking-widest text-slate-700 shadow-sm" value={range.to} onChange={(e) => { const r = [...ranges]; r[idx].to = e.target.value; setRanges(r); }} />
+                                            </div>
+                                            <div className="w-full xl:w-auto flex items-center justify-between xl:justify-end gap-3 mt-1 xl:mt-0 pb-1">
+                                                {rangeCount > 0 ? <span className="text-sm font-bold text-amber-700 bg-amber-100/50 px-4 py-2.5 rounded-xl border border-amber-200 shadow-sm">{rangeCount} lembar</span> : <span className="text-sm text-slate-400 px-4 py-2.5">0 lembar</span>}
+                                                <button onClick={() => { if(ranges.length > 1) setRanges(ranges.filter((_, i) => i !== idx)) }} disabled={ranges.length === 1} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl disabled:opacity-30 shrink-0"><Trash2 size={22}/></button>
+                                            </div>
                                         </div>
-                                        <div className="w-full md:flex-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sampai Nomor</label>
-                                            <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800" value={range.to} onChange={(e) => { const r = [...ranges]; r[idx].to = e.target.value; setRanges(r); }} />
-                                        </div>
-                                    </div>
-                                ))}
-                                <button onClick={() => setRanges([...ranges, {from:'', to:''}])} className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-amber-200 text-amber-600 font-bold rounded-2xl hover:bg-amber-50 transition-all">Tambah Baris Input</button>
+                                    )
+                                })}
+                                <button onClick={() => setRanges([...ranges, { from: '', to: '' }])} className="w-full sm:w-auto px-6 py-3 border-2 border-dashed border-amber-200 text-amber-600 font-semibold rounded-xl hover:bg-amber-50 flex items-center justify-center gap-2 transition-all"><PlusCircle size={18}/> Tambah Baris Rentang</button>
                             </div>
 
                             {conflictError && (
-                                <div className="bg-red-50 border border-red-200 p-6 rounded-2xl flex items-start gap-4">
-                                    <AlertTriangle className="text-red-600" size={24} />
+                                <div className="mt-6 p-5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 fade-in">
+                                    <AlertTriangle size={24} className="text-red-500 shrink-0" />
                                     <div>
-                                        <h4 className="text-red-800 font-black text-lg">Bentrok Lintas Tim!</h4>
-                                        <p className="text-red-600 font-medium text-sm mt-1">Nomor #{conflictError.number} sudah dimiliki oleh {conflictError.owner}.</p>
+                                        <p className="font-bold text-red-800 text-lg tracking-tight">Akses Ditolak! Lintas Tim</p>
+                                        <p className="text-sm text-red-600 mt-1">Nomor <span className="font-mono bg-red-200 px-1.5 py-0.5 rounded text-red-900 font-bold">#{conflictError.number}</span> sudah dimiliki oleh <strong className="uppercase bg-red-600 text-white px-2 py-0.5 rounded text-xs tracking-wider">{conflictError.owner}</strong>. Harap ganti rentang.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {previewNumbers.length > 0 && !conflictError && (
+                                <div className="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-5 fade-in">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Preview Live (Max 100):</p>
+                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                        {previewNumbers.map(n => <span key={n} className="bg-white border border-slate-200 px-2.5 py-1 rounded text-xs font-mono font-bold text-slate-600 shadow-sm">#{n}</span>)}
+                                        {totalGeneratedDocs > 100 && <span className="text-xs bg-slate-200 px-2.5 py-1 rounded font-bold text-slate-600">+{totalGeneratedDocs - 100} lainnya...</span>}
                                     </div>
                                 </div>
                             )}
 
                             {totalGeneratedDocs > 0 && !conflictError && (
-                                <button onClick={handleGenerate} disabled={isGenerating || !teamId} className="w-full px-10 py-5 bg-amber-500 text-white font-black text-lg rounded-2xl hover:bg-amber-600 active:scale-95 transition-all shadow-lg flex justify-center gap-3">
-                                    <Archive size={24}/> Simpan ke Laci
-                                </button>
+                                <div className="mt-8 flex flex-col md:flex-row justify-between items-center bg-slate-800 p-6 md:p-8 rounded-2xl text-white gap-6 fade-in shadow-xl">
+                                    <div className="text-center md:text-left">
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Total Disimpan</p>
+                                        <p className="text-4xl font-black">{totalGeneratedDocs} <span className="text-sm font-medium text-slate-400">lembar</span></p>
+                                    </div>
+                                    <button onClick={handleGenerate} disabled={isGenerating || !teamId} className="w-full md:w-auto bg-amber-500 text-slate-900 px-10 py-4 rounded-xl font-black text-lg hover:bg-amber-400 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all">
+                                        {isGenerating ? <RefreshCw className="animate-spin" size={24} /> : <Archive size={24} />} Simpan ke Laci
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
                 );
             };
 
-            // ==========================================
-            // COMPONENT: CHICK-IN (ALOKASI BTPA)
-            // ==========================================
             const ChickInView = () => {
                 const [formData, setFormData] = useState({ teamId: '', date: '', name: '', population: '' });
                 const [ranges, setRanges] = useState([{ from: '', to: '' }]);
-                const [usedDrawerDocs, setUsedDrawerDocs] = useState(new Set());
                 const [isGenerating, setIsGenerating] = useState(false);
+                const [usedDrawerDocs, setUsedDrawerDocs] = useState(new Set());
 
-                const estimatedDocs = Math.ceil((parseInt(formData.population) || 0) / 1000);
+                const populationNum = parseInt(formData.population) || 0;
+                const estimatedDocs = Math.ceil(populationNum / 1000);
+
+                // Auto-group Laci
+                const drawerDocsAnalysis = useMemo(() => {
+                    if (!formData.teamId) return { adminDocs: [], adminGroups: [], penimDocs: [], penimGroups: [] };
+                    const dDocs = documents.filter(d => d.teamId === formData.teamId && d.status === 'DI_ADMIN').sort((a,b) => parseInt(a.number) - parseInt(b.number));
+                    const penimDocs = documents.filter(d => d.teamId === formData.teamId && d.status === 'DI_PENIMBANG').sort((a,b) => parseInt(a.number) - parseInt(b.number));
+                    
+                    const createGroups = (sourceDocs) => {
+                        let groups = [];
+                        if (sourceDocs.length > 0) {
+                            let currentGroup = [sourceDocs[0]];
+                            for (let i = 1; i < sourceDocs.length; i++) {
+                                if (parseInt(sourceDocs[i].number) === parseInt(sourceDocs[i-1].number) + 1) {
+                                    currentGroup.push(sourceDocs[i]);
+                                } else {
+                                    if (currentGroup.length > 1) groups.push([...currentGroup]);
+                                    currentGroup = [sourceDocs[i]];
+                                }
+                            }
+                            if (currentGroup.length > 1) groups.push(currentGroup);
+                        }
+                        return groups;
+                    };
+
+                    return { adminDocs: dDocs, adminGroups: createGroups(dDocs), penimDocs: penimDocs, penimGroups: createGroups(penimDocs) };
+                }, [documents, formData.teamId]);
+
                 const totalGeneratedDocs = ranges.reduce((acc, range) => {
                     const from = parseInt(range.from); const to = parseInt(range.to);
                     if (!isNaN(from) && !isNaN(to) && from <= to) return acc + (to - from + 1); return acc;
                 }, 0);
 
-                const drawerDocsAnalysis = useMemo(() => {
-                    if (!formData.teamId) return { docs: [], groups: [] };
-                    const dDocs = documents.filter(d => d.teamId === formData.teamId && d.status === 'DI_ADMIN').sort((a,b) => parseInt(a.number) - parseInt(b.number));
-                    let groups = [];
-                    if (dDocs.length > 0) {
-                        let currentGroup = [dDocs[0]];
-                        for (let i = 1; i < dDocs.length; i++) {
-                            if (parseInt(dDocs[i].number) === parseInt(dDocs[i-1].number) + 1) currentGroup.push(dDocs[i]);
-                            else { if (currentGroup.length > 1) groups.push([...currentGroup]); currentGroup = [dDocs[i]]; }
+                const previewNumbers = useMemo(() => {
+                    let nums = [];
+                    for (const range of ranges) {
+                        const from = parseInt(range.from); const to = parseInt(range.to);
+                        if (!isNaN(from) && !isNaN(to) && from <= to) {
+                            for (let i = from; i <= to; i++) { nums.push(i.toString()); if(nums.length >= 100) break; }
                         }
-                        if (currentGroup.length > 1) groups.push(currentGroup);
+                        if(nums.length >= 100) break;
                     }
-                    return { docs: dDocs, groups };
-                }, [documents, formData.teamId]);
+                    return nums;
+                }, [ranges]);
 
                 const conflictError = useMemo(() => {
                     if (!formData.teamId) return null;
@@ -488,7 +567,11 @@
                     return null;
                 }, [ranges, documents, formData.teamId, teams]);
 
-                const injectRange = (fromStr, toStr, sourceId) => {
+                const handleRangeChange = (index, field, value) => {
+                    const newRanges = [...ranges]; newRanges[index][field] = value; setRanges(newRanges);
+                };
+
+                const injectFromLaci = (fromStr, toStr, sourceIdArr) => {
                     let inserted = false;
                     const newRanges = [...ranges];
                     for (let i = 0; i < newRanges.length; i++) {
@@ -500,324 +583,385 @@
                     setRanges(newRanges);
                     
                     const newUsed = new Set(usedDrawerDocs);
-                    if (Array.isArray(sourceId)) sourceId.forEach(id => newUsed.add(id));
-                    else newUsed.add(sourceId);
+                    sourceIdArr.forEach(id => newUsed.add(id));
                     setUsedDrawerDocs(newUsed);
                 };
 
-                const handleGenerate = () => {
-                    if (!formData.teamId || !formData.date || !formData.name || !formData.population) return fireAlert('Validasi', 'Lengkapi data kandang (Kiri)!', 'error');
+                const handleGenerate = (e) => {
+                    e.preventDefault();
+                    if (!formData.teamId || !formData.date || !formData.name || !formData.population) return fireAlert('Validasi', 'Lengkapi seluruh data kandang (Panel Kiri).', 'error');
                     if (conflictError) return;
-                    setIsGenerating(true);
+                    if (totalGeneratedDocs === 0) return fireAlert('Kosong', 'Rentang nomor belum diisi.', 'error');
                     
+                    setIsGenerating(true);
                     setTimeout(() => {
-                        const batchId = generateId();
-                        let numbersToGenerate = [];
+                        let numsToGen = [];
                         for (const range of ranges) {
-                            const from = parseInt(range.from); const to = parseInt(range.to);
-                            if (isNaN(from) || isNaN(to) || from > to) continue;
-                            for (let i = from; i <= to; i++) numbersToGenerate.push(i.toString());
+                            const f = parseInt(range.from); const t = parseInt(range.to);
+                            if (isNaN(f) || isNaN(t) || f > t) continue;
+                            for (let i = f; i <= t; i++) numsToGen.push(i.toString());
                         }
 
+                        if (numsToGen.length > 20000) { setIsGenerating(false); return fireAlert('Limit', 'Maksimal 20.000 dokumen per kandang.', 'error'); }
+
+                        const batchId = generateId();
+                        const newBatch = { id: batchId, teamId: formData.teamId, date: formData.date, name: formData.name, population: populationNum, status: 'AKTIF' };
+
                         const updatedDocs = [...documents];
-                        numbersToGenerate.forEach(num => {
-                            const existingIdx = updatedDocs.findIndex(d => d.number === num && d.status === 'DI_ADMIN' && d.teamId === formData.teamId);
-                            if (existingIdx !== -1) updatedDocs[existingIdx] = { ...updatedDocs[existingIdx], batchId, status: 'DIALOKASIKAN' };
+                        numsToGen.forEach(num => {
+                            const extIdx = updatedDocs.findIndex(d => d.number === num && d.teamId === formData.teamId && (d.status === 'DI_ADMIN' || d.status === 'DI_PENIMBANG'));
+                            if (extIdx !== -1) updatedDocs[extIdx] = { ...updatedDocs[extIdx], batchId, status: 'DIALOKASIKAN', penimbangName: null };
                             else updatedDocs.push({ id: generateId(), batchId, teamId: formData.teamId, number: num, status: 'DIALOKASIKAN' });
                         });
 
-                        setBatches([...batches, { id: batchId, teamId: formData.teamId, date: formData.date, name: formData.name, population: parseInt(formData.population), status: 'AKTIF' }]);
-                        setDocuments(updatedDocs);
+                        setBatches([...batches, newBatch]); setDocuments(updatedDocs);
+                        fireAlert('Kandang Didaftarkan!', `Kandang ${formData.name} berjalan. ${numsToGen.length} dokumen dialokasikan.`, 'success');
                         
-                        fireAlert('Kandang Didaftarkan!', `${numbersToGenerate.length} dokumen BTPA siap digunakan.`, 'success');
                         setFormData({ teamId: '', date: '', name: '', population: '' });
                         setRanges([{ from: '', to: '' }]); setUsedDrawerDocs(new Set());
                         setIsGenerating(false);
-                    }, 300);
+                    }, 50);
+                };
+
+                const renderLaciBox = (title, docs, groups, colorTheme, icon) => {
+                    if (!docs || docs.length === 0) return null;
+                    const IconComponent = icon;
+                    return (
+                        <div className={`p-5 mb-6 rounded-xl border ${colorTheme.bg} ${colorTheme.border}`}>
+                            <p className={`text-sm font-bold ${colorTheme.text} mb-3 flex items-center gap-2`}><IconComponent size={18} /> {title} ({docs.length}):</p>
+                            {groups && groups.length > 0 && (
+                                <div className="mb-4">
+                                    <p className={`text-[10px] font-bold ${colorTheme.subText} uppercase tracking-widest mb-2`}>Grup Berurutan:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {groups.map((g, i) => {
+                                            const isU = usedDrawerDocs.has(g[0].id);
+                                            return <button key={i} disabled={isU} onClick={()=>injectFromLaci(g[0].number, g[g.length-1].number, g.map(x=>x.id))} className={`px-3 py-2 rounded-lg border-2 text-xs font-bold transition-all shadow-sm ${isU?`${colorTheme.usedBg} ${colorTheme.usedText} border-transparent`:`bg-white ${colorTheme.btnBorder} ${colorTheme.text} hover:${colorTheme.hoverBg} active:scale-95`}`}>{isU?<CheckCircle2 size={14} className="inline mr-1"/>:<ListOrdered size={14} className="inline mr-1"/>}#{g[0].number} - #{g[g.length-1].number} ({g.length})</button>
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <div>
+                                <p className={`text-[10px] font-bold ${colorTheme.subText} uppercase tracking-widest mb-2`}>Pilih Satuan:</p>
+                                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scrollbar pr-2">
+                                    {docs.map(d => {
+                                        const isU = usedDrawerDocs.has(d.id);
+                                        return <button key={d.id} disabled={isU} onClick={()=>injectFromLaci(d.number, d.number, [d.id])} className={`px-2.5 py-1.5 rounded-md border text-xs font-mono font-bold transition-all shadow-sm ${isU?`${colorTheme.usedBg} ${colorTheme.usedText} border-transparent`:`bg-white ${colorTheme.btnBorder} ${colorTheme.text} hover:${colorTheme.hoverBg} active:scale-95`}`}>{isU&&<CheckCircle2 size={12} className="inline mr-1"/>}#{d.number}</button>
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    );
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
-                        {/* KIRI: Data Kandang */}
-                        <div className="w-full lg:w-[400px] shrink-0 space-y-6">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><PlusCircle size={28}/></div>
-                                <div><h2 className="text-2xl font-black text-slate-800">1. Data Kandang</h2><p className="text-slate-500 text-sm">Informasi siklus panen.</p></div>
-                            </div>
-                            <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200/60 space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Tim Pelaksana</label>
-                                    <select className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-lg" value={formData.teamId} onChange={(e) => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'', to:''}]); setUsedDrawerDocs(new Set());}}>
-                                        <option value="">-- Pilih Tim --</option>
-                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                    </select>
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 fade-in">
+                        {/* Kiri: Kandang */}
+                        <div className="w-full lg:w-[350px] shrink-0 space-y-6">
+                            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><PlusCircle className="text-emerald-500" size={24}/> 1. Kandang</h2>
+                                <div className="space-y-4">
+                                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Tim</label><select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold text-slate-700 cursor-pointer" value={formData.teamId} onChange={(e) => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'', to:''}]); setUsedDrawerDocs(new Set());}}><option value="">-- Pilih Tim --</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+                                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Tanggal</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold text-slate-700" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})}/></div>
+                                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Nama Kandang</label><input type="text" placeholder="Kandang A1" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold text-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
+                                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 pl-1">Populasi</label><input type="number" placeholder="5000" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold text-slate-700" value={formData.population} onChange={e => setFormData({...formData, population: e.target.value})}/></div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Tanggal Chick-in</label>
-                                    <input type="date" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-slate-700" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama Kandang</label>
-                                    <input type="text" placeholder="Contoh: Kandang A1" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-slate-700" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Populasi</label>
-                                    <input type="number" placeholder="Contoh: 5000" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-bold text-slate-700" value={formData.population} onChange={(e) => setFormData({...formData, population: e.target.value})} />
-                                </div>
-                                <div className="bg-sky-50 border border-sky-100 p-6 rounded-2xl flex justify-between items-center mt-8">
-                                    <div><p className="text-[10px] font-black text-sky-600/80 uppercase tracking-widest mb-1">Estimasi Kebutuhan</p><p className="text-3xl font-black text-sky-700">{estimatedDocs} <span className="text-base font-bold opacity-70">lembar</span></p></div>
-                                    <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center text-sky-500"><BarChart3 size={24}/></div>
+                                <div className="mt-8 p-5 bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100 rounded-2xl flex justify-between items-center shadow-inner">
+                                    <div><p className="text-[10px] font-bold text-sky-700 uppercase tracking-widest mb-1">Estimasi Sistem</p><p className="text-3xl font-black text-sky-600 tracking-tight">{estimatedDocs} <span className="text-sm font-medium">lbr</span></p></div>
+                                    <BarChart3 size={32} className="text-sky-200"/>
                                 </div>
                             </div>
                         </div>
 
-                        {/* KANAN: Alokasi */}
+                        {/* Kanan: Alokasi */}
                         <div className="flex-1 space-y-6">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><FileText size={28}/></div>
-                                <div><h2 className="text-2xl font-black text-slate-800">2. Alokasi BTPA</h2><p className="text-slate-500 text-sm">Berikan dokumen baru atau dari Laci.</p></div>
-                            </div>
+                            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+                                <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><FileText className="text-emerald-500" size={24}/> 2. Alokasi BTPA</h2>
+                                
+                                {renderLaciBox("Di Laci Admin", drawerDocsAnalysis.adminDocs, drawerDocsAnalysis.adminGroups, {bg:'bg-amber-50/50', border:'border-amber-200', text:'text-amber-800', subText:'text-amber-600/80', btnBorder:'border-amber-300', hoverBg:'bg-amber-100', usedBg:'bg-amber-100/50', usedText:'text-amber-500'}, Inbox)}
+                                {renderLaciBox("Di Tangan Penimbang", drawerDocsAnalysis.penimDocs, drawerDocsAnalysis.penimGroups, {bg:'bg-indigo-50/50', border:'border-indigo-200', text:'text-indigo-800', subText:'text-indigo-600/80', btnBorder:'border-indigo-300', hoverBg:'bg-indigo-100', usedBg:'bg-indigo-100/50', usedText:'text-indigo-500'}, UserCheck)}
 
-                            <div className="bg-white p-6 md:p-10 rounded-[2rem] shadow-sm border border-slate-200/60 space-y-6">
-                                {/* Modul Laci Admin */}
-                                {drawerDocsAnalysis.docs.length > 0 && (
-                                    <div className="bg-amber-50/80 border border-amber-200/60 p-6 rounded-2xl">
-                                        <h3 className="text-sm font-black text-amber-800 uppercase tracking-widest mb-4 flex items-center gap-2"><Inbox size={18}/> Dokumen di Laci ({drawerDocsAnalysis.docs.length} Lembar)</h3>
-                                        {drawerDocsAnalysis.groups.length > 0 && (
-                                            <div className="mb-5">
-                                                <p className="text-[10px] font-bold text-amber-600/80 uppercase mb-2">Pilih Grup (Berurutan):</p>
-                                                <div className="flex flex-wrap gap-2.5">
-                                                    {drawerDocsAnalysis.groups.map((group, idx) => {
-                                                        const isUsed = usedDrawerDocs.has(group[0].id);
-                                                        return (
-                                                            <button key={`g${idx}`} disabled={isUsed} onClick={() => injectRange(group[0].number, group[group.length-1].number, group.map(g=>g.id))} className={`px-4 py-2.5 rounded-xl border-2 font-black text-sm flex items-center gap-2 ${isUsed ? 'bg-amber-100/50 border-transparent text-amber-400' : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100'}`}>
-                                                                {isUsed ? <CheckCircle2 size={16}/> : <ListOrdered size={16}/>} #{group[0].number} - #{group[group.length-1].number}
-                                                            </button>
-                                                        )
-                                                    })}
+                                <div className="space-y-4">
+                                    {ranges.map((range, idx) => {
+                                        const fv = parseInt(range.from); const tv = parseInt(range.to);
+                                        const c = (!isNaN(fv) && !isNaN(tv) && fv <= tv) ? (tv - fv + 1) : 0;
+                                        return (
+                                            <div key={idx} className="flex flex-col xl:flex-row items-start xl:items-end gap-3 md:gap-4 bg-slate-50/50 p-4 md:p-5 rounded-xl border border-slate-200/60 group hover:border-emerald-200 transition-colors">
+                                                <div className="w-full xl:flex-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Mulai Nomor</label><input type="number" placeholder="1001" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono font-bold text-lg tracking-widest text-slate-700 shadow-sm" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} /></div>
+                                                <div className="hidden xl:block font-bold text-slate-300 pb-3 text-xl">-</div>
+                                                <div className="w-full xl:flex-1"><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sampai Nomor</label><input type="number" placeholder="1005" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono font-bold text-lg tracking-widest text-slate-700 shadow-sm" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} /></div>
+                                                <div className="w-full xl:w-auto mt-1 xl:mt-0 pb-1 flex items-center justify-between gap-3 shrink-0">
+                                                    {c > 0 ? <span className="px-4 py-2.5 bg-emerald-100/50 text-emerald-700 text-sm font-bold rounded-xl border border-emerald-200 shadow-sm">{c} lbr</span> : <span className="px-4 py-2.5 text-slate-400 text-sm">0 lbr</span>}
+                                                    <button onClick={() => { if(ranges.length>1) setRanges(ranges.filter((_,i)=>i!==idx)) }} disabled={ranges.length===1} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl disabled:opacity-30 transition-colors"><Trash2 size={22}/></button>
                                                 </div>
                                             </div>
-                                        )}
-                                        <div>
-                                            <p className="text-[10px] font-bold text-amber-600/80 uppercase mb-2">Atau Pilih Satuan:</p>
-                                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                                                {drawerDocsAnalysis.docs.map(doc => {
-                                                    const isUsed = usedDrawerDocs.has(doc.id);
-                                                    return (
-                                                        <button key={doc.id} disabled={isUsed} onClick={() => injectRange(doc.number, doc.number, doc.id)} className={`px-3 py-1.5 rounded-lg border font-mono font-bold text-sm ${isUsed ? 'bg-amber-100/50 text-amber-400' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'}`}>
-                                                            {isUsed && <CheckCircle2 size={12} className="inline mr-1"/>} #{doc.number}
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
+                                        )
+                                    })}
+                                    <button onClick={() => setRanges([...ranges, {from:'', to:''}])} className="w-full sm:w-auto px-6 py-3 border-2 border-dashed border-emerald-200 text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 text-sm flex items-center justify-center gap-2 transition-all"><PlusCircle size={18}/> Tambah Baris Rentang</button>
+                                </div>
+
+                                {conflictError && (
+                                    <div className="mt-6 p-5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 fade-in">
+                                        <AlertTriangle size={24} className="text-red-500 shrink-0" />
+                                        <div><p className="font-bold text-red-800 text-lg tracking-tight">Akses Ditolak! Lintas Tim</p><p className="text-sm text-red-600 mt-1">Nomor <span className="font-mono bg-red-200 px-1.5 py-0.5 rounded text-red-900 font-bold">#{conflictError.number}</span> sudah sah milik <strong className="uppercase bg-red-600 text-white px-2 py-0.5 rounded text-xs tracking-wider">{conflictError.owner}</strong>.</p></div>
+                                    </div>
+                                )}
+
+                                {previewNumbers.length > 0 && !conflictError && (
+                                    <div className="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-5 fade-in">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Preview Live (Max 100):</p>
+                                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                            {previewNumbers.map(n => <span key={n} className="bg-white border border-slate-200 px-2.5 py-1 rounded text-xs font-mono font-bold text-slate-600 shadow-sm">#{n}</span>)}
+                                            {totalGeneratedDocs > 100 && <span className="text-xs bg-slate-200 px-2.5 py-1 rounded font-bold text-slate-600">+{totalGeneratedDocs - 100} lainnya...</span>}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Input Rentang Dinamis */}
-                                <div className="space-y-4">
-                                    {ranges.map((range, idx) => (
-                                        <div key={idx} className="flex flex-col md:flex-row items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200/60">
-                                            <div className="w-full md:flex-1">
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mulai Nomor</label>
-                                                <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-mono font-black text-xl text-slate-800 tracking-widest" value={range.from} onChange={(e) => { const r = [...ranges]; r[idx].from = e.target.value; setRanges(r); }} />
+                                {totalGeneratedDocs > 0 && !conflictError && (
+                                    <div className={`mt-8 flex flex-col md:flex-row justify-between items-center p-6 md:p-8 rounded-2xl text-white gap-6 fade-in shadow-xl transition-all ${estimatedDocs>0&&totalGeneratedDocs!==estimatedDocs?'bg-amber-500':'bg-slate-800'}`}>
+                                        <div className="text-center md:text-left">
+                                            <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold mb-1">Total Generate Final</p>
+                                            <div className="flex items-center gap-3 justify-center md:justify-start">
+                                                <p className="text-4xl font-black">{totalGeneratedDocs}</p>
+                                                {estimatedDocs>0&&totalGeneratedDocs!==estimatedDocs&&<span className="text-[10px] bg-white/20 px-2.5 py-1.5 rounded-lg font-bold uppercase flex items-center gap-1"><AlertTriangle size={14}/> Meleset Estimasi</span>}
+                                                {estimatedDocs>0&&totalGeneratedDocs===estimatedDocs&&<span className="text-[10px] bg-emerald-500/80 px-2.5 py-1.5 rounded-lg font-bold uppercase flex items-center gap-1 shadow-inner"><CheckCircle2 size={14}/> Sesuai</span>}
                                             </div>
-                                            <div className="w-full md:flex-1">
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sampai Nomor</label>
-                                                <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 outline-none font-mono font-black text-xl text-slate-800 tracking-widest" value={range.to} onChange={(e) => { const r = [...ranges]; r[idx].to = e.target.value; setRanges(r); }} />
-                                            </div>
-                                            <button onClick={() => { if(ranges.length>1) setRanges(ranges.filter((_, i) => i !== idx)); }} className="p-3 text-slate-400 hover:text-red-500"><Trash2 size={22}/></button>
                                         </div>
-                                    ))}
-                                    <button onClick={() => setRanges([...ranges, {from:'', to:''}])} className="px-6 py-4 border-2 border-dashed border-emerald-200 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-50 w-full md:w-auto">Tambah Baris Input</button>
-                                </div>
-
-                                {/* Area Simpan */}
-                                {conflictError && (
-                                    <div className="bg-red-50 p-6 rounded-2xl flex gap-4 text-red-800 font-bold border border-red-200"><AlertTriangle /> Nomor #{conflictError.number} sudah dipakai oleh {conflictError.owner}.</div>
+                                        <button onClick={handleGenerate} disabled={isGenerating || !formData.teamId} className={`w-full md:w-auto px-10 py-4 rounded-xl font-black text-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3 transition-all shadow-lg ${estimatedDocs>0&&totalGeneratedDocs!==estimatedDocs?'bg-slate-900 text-white hover:bg-slate-800':'bg-emerald-500 hover:bg-emerald-400'}`}>
+                                            {isGenerating?<RefreshCw className="animate-spin" size={24}/>:<Play size={24} className="fill-current"/>} Simpan Kandang
+                                        </button>
+                                    </div>
                                 )}
-
-                                <div className="p-8 bg-slate-800 text-white rounded-3xl flex flex-col md:flex-row justify-between items-center gap-6">
-                                    <div><p className="text-slate-400 text-xs font-bold uppercase mb-1">Total Generate</p><p className="text-4xl font-black">{totalGeneratedDocs} <span className="text-base font-normal">Lembar</span></p></div>
-                                    <button onClick={handleGenerate} disabled={isGenerating || !!conflictError || !formData.teamId} className="w-full md:w-auto px-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-lg rounded-2xl active:scale-95 disabled:opacity-50 transition-all flex items-center gap-3">
-                                        <Play className="fill-current"/> Simpan Kandang
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
                 );
             };
 
-            // ==========================================
-            // COMPONENT: PROSES PANEN
-            // ==========================================
             const ProsesPanenView = () => {
                 const [selectedBatch, setSelectedBatch] = useState(null);
+                const [visibleCount, setVisibleCount] = useState(50);
+                const [searchTerm, setSearchTerm] = useState('');
+                
                 const activeBatches = batches.filter(b => b.status === 'AKTIF');
+
+                const handleUpdateDocStatus = (docId, newStatus) => {
+                    setDocuments(docs => docs.map(d => d.id === docId ? { ...d, status: newStatus } : d));
+                };
+
+                const handleBulkAction = (status) => {
+                    if (!selectedBatch) return;
+                    setDocuments(docs => docs.map(d => (d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN') ? { ...d, status: status } : d));
+                    addToast(`Semua diubah jadi ${status === 'TERPAKAI' ? 'Selesai' : 'Laci Admin'}`);
+                };
+
+                const handleCloseBatch = () => {
+                    const unresolved = documents.filter(d => d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN').length;
+                    if (unresolved > 0) return fireAlert('Ditolak', `Masih ada ${unresolved} dokumen menggantung!`, 'error');
+                    setBatches(bs => bs.map(b => b.id === selectedBatch.id ? { ...b, status: 'SELESAI' } : b));
+                    fireAlert('Selesai', `Kandang ditutup permanen.`, 'success');
+                    setSelectedBatch(null);
+                };
 
                 if (!selectedBatch) {
                     return (
-                        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
-                            <h2 className="text-3xl font-black text-slate-800">Proses Panen (Kandang Aktif)</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-                                {activeBatches.map(batch => {
-                                    const unresolved = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').length;
-                                    return (
-                                        <div key={batch.id} onClick={() => setSelectedBatch(batch)} className="bg-white p-6 rounded-3xl border border-slate-200/60 cursor-pointer hover:border-emerald-300 hover:shadow-lg transition-all group">
-                                            <h3 className="text-2xl font-black text-slate-800 group-hover:text-emerald-600 mb-4">{batch.name}</h3>
-                                            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl">
-                                                <div><p className="text-xs font-bold text-slate-400 uppercase">Populasi</p><p className="text-lg font-black">{batch.population}</p></div>
-                                                <div className="text-right"><p className="text-xs font-bold text-slate-400 uppercase">Gantung</p><p className={`text-lg font-black ${unresolved > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>{unresolved > 0 ? unresolved : 'Bersih'}</p></div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 fade-in">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><RefreshCw className="text-emerald-600" size={28}/></div>
+                                <div><h2 className="text-2xl font-bold text-slate-800">Proses Panen</h2><p className="text-slate-500 text-sm mt-1">Pilih kandang aktif untuk mencatat kepulangan dokumen.</p></div>
                             </div>
+
+                            {activeBatches.length === 0 ? (
+                                <div className="bg-white p-16 text-center rounded-3xl border-2 border-dashed border-slate-200 shadow-sm"><ListOrdered size={48} className="mx-auto text-slate-300 mb-4"/><p className="text-xl font-bold text-slate-600 mb-1">Tidak ada kandang aktif.</p><p className="text-slate-400">Kandang yang sedang berjalan akan muncul di sini.</p></div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {activeBatches.map(batch => {
+                                        const unresolved = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').length;
+                                        return (
+                                            <div key={batch.id} onClick={() => { setSelectedBatch(batch); setVisibleCount(50); setSearchTerm(''); }} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-lg hover:border-emerald-300 cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col">
+                                                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div>
+                                                        <h3 className="text-xl font-black text-slate-800 group-hover:text-emerald-600 transition-colors">{batch.name}</h3>
+                                                        <p className="text-xs font-bold text-slate-500 mt-2 flex items-center gap-1.5"><Users size={14} className="text-slate-400"/> {getTeamName(batch.teamId)}</p>
+                                                    </div>
+                                                    <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-md uppercase tracking-widest">AKTIF</span>
+                                                </div>
+                                                <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 mt-auto">
+                                                    <div className="flex-1"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Populasi</p><p className="font-black text-slate-700 text-lg">{batch.population}</p></div>
+                                                    <div className="w-px h-8 bg-slate-200"></div>
+                                                    <div className="flex-1"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Menggantung</p><p className={`font-black text-lg flex items-center gap-1 ${unresolved>0?'text-amber-500':'text-emerald-500'}`}>{unresolved>0?unresolved:<><CheckCircle2 size={16}/> Bersih</>}</p></div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
                     );
                 }
 
-                // Detail Kandang Terpilih
-                const batchDocs = documents.filter(d => d.batchId === selectedBatch.id);
+                const batchDocs = documents.filter(d => d.batchId === selectedBatch.id).sort((a,b)=>parseInt(a.number)-parseInt(b.number));
+                const filteredDocs = searchTerm ? batchDocs.filter(d => d.number.includes(searchTerm)) : batchDocs;
                 const unresolvedCount = batchDocs.filter(d => d.status === 'DIALOKASIKAN').length;
 
-                const handleUpdateStatus = (id, status) => {
-                    setDocuments(docs => docs.map(d => d.id === id ? { ...d, status } : d));
-                };
-
-                const handleCloseBatch = () => {
-                    if (unresolvedCount > 0) return fireAlert('Ditolak', `Masih ada ${unresolvedCount} dokumen menggantung.`, 'error');
-                    setBatches(bs => bs.map(b => b.id === selectedBatch.id ? { ...b, status: 'SELESAI' } : b));
-                    fireAlert('Sukses', `Kandang ${selectedBatch.name} ditutup permanen.`, 'success');
-                    setSelectedBatch(null);
-                };
-
                 return (
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
-                        <button onClick={() => setSelectedBatch(null)} className="text-slate-500 font-bold mb-6 flex items-center gap-2"><ChevronRight className="rotate-180"/> Kembali</button>
-                        <div className="bg-slate-800 p-8 rounded-3xl text-white flex justify-between items-center mb-6">
-                            <div><h2 className="text-4xl font-black">{selectedBatch.name}</h2><p className="text-slate-400 mt-2">Total {batchDocs.length} Dokumen BTPA</p></div>
-                            <button onClick={handleCloseBatch} className={`px-8 py-4 font-black rounded-2xl ${unresolvedCount === 0 ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-slate-700 text-slate-500 border border-slate-600'}`}>Tutup Siklus Permanen</button>
-                        </div>
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 fade-in">
+                        <button onClick={() => setSelectedBatch(null)} className="text-slate-500 hover:text-emerald-600 text-sm font-bold flex items-center gap-2 mb-4 transition-colors"><div className="p-1.5 bg-white rounded-full shadow-sm border border-slate-200"><ChevronRight className="rotate-180" size={16}/></div> Kembali</button>
                         
-                        <div className="bg-white rounded-3xl p-4 border border-slate-200/60">
-                            <table className="w-full text-left">
-                                <thead className="text-xs uppercase text-slate-400 bg-slate-50">
-                                    <tr><th className="p-4">Nomor</th><th className="p-4">Status</th><th className="p-4 text-right">Aksi</th></tr>
-                                </thead>
-                                <tbody>
-                                    {batchDocs.map(doc => (
-                                        <tr key={doc.id} className="border-t border-slate-100">
-                                            <td className="p-4 font-mono font-black text-xl text-slate-800">#{doc.number}</td>
-                                            <td className="p-4">
-                                                <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${doc.status === 'TERPAKAI' ? 'bg-emerald-100 text-emerald-700' : doc.status === 'DI_ADMIN' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{doc.status}</span>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                {doc.status === 'DIALOKASIKAN' ? (
-                                                    <div className="flex justify-end gap-2">
-                                                        <button onClick={() => handleUpdateStatus(doc.id, 'TERPAKAI')} className="px-4 py-2 bg-emerald-500 text-white font-bold rounded-xl">Terpakai</button>
-                                                        <button onClick={() => handleUpdateStatus(doc.id, 'DI_ADMIN')} className="px-4 py-2 bg-amber-500 text-white font-bold rounded-xl">Ke Laci</button>
-                                                    </div>
-                                                ) : (
-                                                    <button onClick={() => handleUpdateStatus(doc.id, 'DIALOKASIKAN')} className="px-4 py-2 bg-slate-100 font-bold rounded-xl">Batalkan</button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="bg-slate-800 p-8 md:p-10 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+                            <div className="text-white">
+                                <div className="flex items-center gap-3 mb-2"><h2 className="text-4xl font-black tracking-tight">{selectedBatch.name}</h2><span className="bg-emerald-500 px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-widest">AKTIF</span></div>
+                                <p className="text-slate-300 font-medium text-sm flex items-center gap-4"><span className="flex items-center gap-1.5"><Users size={16}/> {getTeamName(selectedBatch.teamId)}</span><span className="flex items-center gap-1.5"><FileText size={16}/> Total: {batchDocs.length} lbr</span></p>
+                            </div>
+                            <button onClick={handleCloseBatch} className={`w-full md:w-auto px-8 py-4 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-lg text-lg ${unresolvedCount===0?'bg-emerald-500 text-white hover:bg-emerald-400 active:scale-95':'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'}`}><Archive size={24}/> Tutup Permanen</button>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-center gap-4 sticky top-4 z-10">
+                            <div className="flex items-center gap-3 bg-amber-50 px-5 py-3 rounded-xl border border-amber-100 w-full lg:w-auto">
+                                <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></div> 
+                                <span className="text-amber-800 font-black text-sm tracking-wide">{unresolvedCount} Menggantung</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                                <div className="relative flex-1"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/><input type="text" placeholder="Cari No. BTPA..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-semibold"/></div>
+                                <div className="w-px h-10 bg-slate-200 hidden sm:block mt-1"></div>
+                                <button onClick={() => handleBulkAction('TERPAKAI')} disabled={unresolvedCount===0} className="flex-1 sm:flex-none px-5 py-3 bg-emerald-50 text-emerald-700 font-bold text-sm rounded-xl hover:bg-emerald-100 disabled:opacity-50 transition-colors"><CheckSquare size={18} className="inline mr-1"/> Semua Selesai</button>
+                                <button onClick={() => handleBulkAction('DI_ADMIN')} disabled={unresolvedCount===0} className="flex-1 sm:flex-none px-5 py-3 bg-amber-50 text-amber-700 font-bold text-sm rounded-xl hover:bg-amber-100 disabled:opacity-50 transition-colors"><Inbox size={18} className="inline mr-1"/> Semua Laci</button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[700px]">
+                                    <thead><tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-widest font-bold"><th className="px-8 py-5 w-20">No</th><th className="px-8 py-5">Nomor BTPA</th><th className="px-8 py-5">Status Live</th><th className="px-8 py-5 text-right">Aksi Eksekusi</th></tr></thead>
+                                    <tbody className="divide-y divide-slate-100/80">
+                                        {filteredDocs.slice(0, visibleCount).map((doc, i) => (
+                                            <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-8 py-6 text-sm text-slate-400 font-bold">{i+1}</td>
+                                                <td className="px-8 py-6 font-mono font-black text-2xl text-slate-800 tracking-wider">#{doc.number}</td>
+                                                <td className="px-8 py-6">
+                                                    {doc.status==='DIALOKASIKAN'&&<span className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-1.5"><Activity size={14}/> Lapangan</span>}
+                                                    {doc.status==='TERPAKAI'&&<span className="bg-emerald-100 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-1.5 shadow-sm"><CheckCircle2 size={14}/> Selesai</span>}
+                                                    {doc.status==='DI_ADMIN'&&<span className="bg-amber-100 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-1.5 shadow-sm"><Inbox size={14}/> Laci</span>}
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    {doc.status==='DIALOKASIKAN'? (
+                                                        <div className="flex justify-end gap-2"><button onClick={()=>handleUpdateDocStatus(doc.id,'TERPAKAI')} className="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 shadow-md shadow-emerald-500/20 active:scale-95 transition-all">Terpakai</button><button onClick={()=>handleUpdateDocStatus(doc.id,'DI_ADMIN')} className="px-5 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 shadow-md shadow-amber-500/20 active:scale-95 transition-all">Laci</button></div>
+                                                    ) : (
+                                                        <button onClick={()=>handleUpdateDocStatus(doc.id,'DIALOKASIKAN')} className="px-5 py-2.5 text-slate-500 bg-slate-100 border border-slate-200 hover:bg-slate-200 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95 flex items-center gap-2 ml-auto"><Undo2 size={16}/> Batal</button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {visibleCount < filteredDocs.length && <div className="p-6 bg-slate-50/50 text-center border-t border-slate-100"><button onClick={()=>setVisibleCount(p=>p+50)} className="px-8 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all text-sm">Tampilkan Lebih Banyak ({filteredDocs.length - visibleCount} tersisa)</button></div>}
                         </div>
                     </div>
                 );
             };
 
-            // ==========================================
-            // COMPONENT: LACI ADMIN (Inventaris)
-            // ==========================================
             const LaciAdminView = () => {
                 const [activeTab, setActiveTab] = useState('laci');
-                const [giveModal, setGiveModal] = useState({ isOpen: false, teamId: null, penimbangName: '', selectedDocs: new Set() });
+                const [giveModal, setGiveModal] = useState({ isOpen: false, teamId: null, penimbangName: '', selected: new Set() });
 
-                const groupedDrawer = documents.filter(d => d.status === 'DI_ADMIN').reduce((acc, d) => {
-                    if (!acc[d.teamId]) acc[d.teamId] = []; acc[d.teamId].push(d); return acc;
-                }, {});
+                const drawerDocs = documents.filter(d => d.status === 'DI_ADMIN');
+                const penimbangDocs = documents.filter(d => d.status === 'DI_PENIMBANG');
 
-                const groupedPenimbang = documents.filter(d => d.status === 'DI_PENIMBANG').reduce((acc, d) => {
-                    if (!acc[d.penimbangName]) acc[d.penimbangName] = []; acc[d.penimbangName].push(d); return acc;
-                }, {});
+                const gDrawer = drawerDocs.reduce((a,c)=>{if(!a[c.teamId])a[c.teamId]=[];a[c.teamId].push(c);return a}, {});
+                const gPenimbang = penimbangDocs.reduce((a,c)=>{if(!a[c.penimbangName])a[c.penimbangName]=[];a[c.penimbangName].push(c);return a}, {});
 
                 const confirmHandover = () => {
-                    setDocuments(docs => docs.map(d => giveModal.selectedDocs.has(d.id) ? { ...d, status: 'DI_PENIMBANG', penimbangName: giveModal.penimbangName } : d));
-                    setGiveModal({ isOpen: false, teamId: null, penimbangName: '', selectedDocs: new Set() });
-                    addToast('Dokumen berhasil diserahkan ke Penimbang', 'success');
+                    if(!giveModal.penimbangName.trim() || giveModal.selected.size===0) return fireAlert('Error','Pilih dokumen dan ketik nama Penimbang.','error');
+                    setDocuments(docs => docs.map(d => giveModal.selected.has(d.id)?{...d,status:'DI_PENIMBANG',penimbangName:giveModal.penimbangName.trim()}:d));
+                    setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()});
+                    addToast(`Dokumen resmi diserahkan ke ${giveModal.penimbangName}`, 'success');
                 };
 
                 return (
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-                        <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200/60">
-                            <div><h2 className="text-3xl font-black text-slate-800">Gudang Inventaris</h2><p className="text-slate-500 mt-1">Kontrol dokumen sisa di Laci dan di tangan Penimbang.</p></div>
-                            <div className="flex bg-slate-100 p-2 rounded-2xl">
-                                <button onClick={() => setActiveTab('laci')} className={`px-6 py-3 rounded-xl font-black text-sm uppercase tracking-widest ${activeTab === 'laci' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Stok Laci</button>
-                                <button onClick={() => setActiveTab('penimbang')} className={`px-6 py-3 rounded-xl font-black text-sm uppercase tracking-widest ${activeTab === 'penimbang' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>Di Penimbang</button>
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 fade-in">
+                        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="flex items-center gap-5">
+                                <div className="p-4 bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 rounded-2xl shadow-inner"><Inbox size={32}/></div>
+                                <div><h2 className="text-3xl font-black text-slate-800 tracking-tight mb-1">Gudang Inventaris</h2><p className="text-slate-500 font-medium text-sm">Pusat kontrol dokumen sisa dan di tangan Penimbang.</p></div>
+                            </div>
+                            <div className="flex bg-slate-100 p-2 rounded-2xl w-full md:w-auto shadow-inner border border-slate-200/50">
+                                <button onClick={()=>setActiveTab('laci')} className={`flex-1 md:flex-none px-8 py-3.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${activeTab==='laci'?'bg-white text-slate-800 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><Inbox size={18}/> Stok Internal</button>
+                                <button onClick={()=>setActiveTab('penimbang')} className={`flex-1 md:flex-none px-8 py-3.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${activeTab==='penimbang'?'bg-white text-slate-800 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><UserCheck size={18}/> Di Penimbang</button>
                             </div>
                         </div>
 
                         {activeTab === 'laci' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {Object.entries(groupedDrawer).map(([teamId, docs]) => {
-                                    const team = teams.find(t => t.id === teamId);
-                                    return (
-                                        <div key={teamId} className="bg-white rounded-3xl border border-slate-200/60 p-8 shadow-sm">
-                                            <div className="flex justify-between items-center mb-6">
-                                                <h3 className="text-xl font-black text-slate-800">{team?.name}</h3>
-                                                <button onClick={() => setGiveModal({ isOpen: true, teamId, penimbangName: team?.penimbang || '', selectedDocs: new Set() })} className="bg-indigo-50 text-indigo-700 px-4 py-2 font-bold rounded-xl hover:bg-indigo-100">Serahkan ke Penimbang</button>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {docs.map(d => <span key={d.id} className="bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg font-mono font-bold text-slate-600">#{d.number}</span>)}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
+                            <div className="fade-in">
+                                {Object.keys(gDrawer).length === 0 ? <div className="bg-white rounded-3xl p-20 border-2 border-dashed border-slate-200 text-center"><Inbox className="mx-auto mb-6 text-slate-200" size={80} /><h3 className="text-2xl font-black text-slate-700 tracking-tight mb-2">Laci Sangat Bersih</h3><p className="text-slate-500 text-lg">Tidak ada tumpukan dokumen sisa di admin saat ini.</p></div> : (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        {Object.entries(gDrawer).map(([tId, docs]) => {
+                                            const team = teams.find(x=>x.id===tId);
+                                            return (
+                                                <div key={tId} className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col relative overflow-hidden group hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
+                                                    <div className="absolute top-0 right-0 w-40 h-40 bg-slate-50 rounded-bl-full -z-10 group-hover:bg-emerald-50/50 transition-colors duration-500"></div>
+                                                    <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                                        <div><h3 className="text-xl font-black text-slate-800 tracking-tight mb-1.5"><Users size={20} className="inline mr-2 text-slate-400"/> {team?.name||'Tim Dihapus'}</h3><span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider shadow-inner">{docs.length} Dokumen Laci</span></div>
+                                                        <button onClick={()=>{setGiveModal({isOpen:true,teamId:tId,penimbangName:team?.penimbang||'',selected:new Set()})}} className="w-full sm:w-auto bg-indigo-50 border border-indigo-200 text-indigo-700 px-6 py-3.5 rounded-xl font-black hover:bg-indigo-100 flex justify-center items-center gap-2 shadow-sm active:scale-95 transition-all text-sm group/btn"><Briefcase size={18} className="group-hover/btn:-translate-y-0.5 transition-transform"/> Serahkan ke Penimbang</button>
+                                                    </div>
+                                                    <div className="p-8 bg-slate-50/30 flex-1">
+                                                        <div className="flex flex-wrap gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                                            {docs.map(d => <span key={d.id} className="bg-white border border-slate-200/80 px-4 py-2 rounded-xl text-sm font-mono font-bold text-slate-600 shadow-sm cursor-default hover:border-emerald-300 transition-colors">#{d.number}</span>)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {activeTab === 'penimbang' && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {Object.entries(groupedPenimbang).map(([penimbangName, docs]) => (
-                                    <div key={penimbangName} className="bg-indigo-50 rounded-3xl p-6 border border-indigo-100">
-                                        <h3 className="text-2xl font-black text-indigo-900 mb-1">{penimbangName}</h3>
-                                        <span className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold">Membawa {docs.length} Lembar</span>
-                                        <div className="mt-6 flex flex-col gap-2">
-                                            {docs.map(d => (
-                                                <div key={d.id} className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm">
-                                                    <span className="font-mono font-bold text-slate-700">#{d.number}</span>
-                                                    <button onClick={() => setDocuments(ds => ds.map(doc => doc.id === d.id ? {...doc, status: 'DI_ADMIN', penimbangName: null} : doc))} className="text-xs bg-amber-50 text-amber-700 px-3 py-1.5 font-bold rounded-lg hover:bg-amber-100">Tarik</button>
+                            <div className="fade-in">
+                                {Object.keys(gPenimbang).length === 0 ? <div className="bg-white rounded-3xl p-20 border-2 border-dashed border-slate-200 text-center"><UserCheck className="mx-auto mb-6 text-slate-200" size={80} /><h3 className="text-2xl font-black text-slate-700 tracking-tight mb-2">Penimbang Kosong</h3><p className="text-slate-500 text-lg">Tidak ada dokumen yang sedang dibawa Penimbang.</p></div> : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                        {Object.entries(gPenimbang).map(([pName, docs]) => (
+                                            <div key={pName} className="bg-white rounded-3xl border border-indigo-200/60 shadow-sm flex flex-col hover:shadow-lg transition-all">
+                                                <div className="p-6 border-b border-indigo-100 bg-indigo-50/50 flex flex-col gap-2 rounded-t-3xl">
+                                                    <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-1 shadow-inner"><UserCheck size={28}/></div>
+                                                    <h3 className="text-3xl font-black text-indigo-950 tracking-tight">{pName}</h3>
+                                                    <span className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest w-fit shadow-md shadow-indigo-600/30 mt-1">Membawa {docs.length} Lbr</span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <div className="p-6 max-h-80 overflow-y-auto flex flex-col gap-4 custom-scrollbar">
+                                                    {docs.map(d => (
+                                                        <div key={d.id} className="flex flex-col xl:flex-row justify-between xl:items-center gap-3 bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                                                            <div><span className="font-mono font-black text-xl text-slate-800 tracking-wider block mb-1.5">#{d.number}</span><span className="text-[10px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">{getTeamName(d.teamId)}</span></div>
+                                                            <div className="flex gap-2">
+                                                                <button onClick={()=>{setDocuments(ds=>ds.map(x=>x.id===d.id?{...x,status:'TERPAKAI'}:x)); addToast(`Dokumen #${d.number} selesai dipakai.`,'success')}} className="flex-1 xl:flex-none p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm active:scale-95" title="Tandai Terpakai (Selesai)"><CheckCircle2 size={18} className="mx-auto"/></button>
+                                                                <button onClick={()=>{setDocuments(ds=>ds.map(x=>x.id===d.id?{...x,status:'DI_ADMIN',penimbangName:null}:x)); addToast(`Ditarik ke laci.`,'success')}} className="flex-1 xl:flex-none p-3 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm active:scale-95" title="Tarik ke Laci Admin"><Undo2 size={18} className="mx-auto"/></button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </div>
                         )}
 
-                        {/* Modal Serahkan ke Penimbang */}
                         {giveModal.isOpen && (
-                            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                                <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl">
-                                    <h3 className="text-2xl font-black text-slate-800 mb-6">Handover ke Penimbang</h3>
-                                    <input type="text" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 font-bold text-lg" value={giveModal.penimbangName} onChange={e => setGiveModal({...giveModal, penimbangName: e.target.value})} placeholder="Nama Penimbang" />
-                                    <p className="text-xs font-bold text-slate-400 uppercase mb-2">Pilih Dokumen:</p>
-                                    <div className="flex flex-wrap gap-2 mb-8 max-h-40 overflow-y-auto">
-                                        {groupedDrawer[giveModal.teamId].map(d => {
-                                            const sel = giveModal.selectedDocs.has(d.id);
-                                            return <button key={d.id} onClick={() => { const s = new Set(giveModal.selectedDocs); sel ? s.delete(d.id) : s.add(d.id); setGiveModal({...giveModal, selectedDocs: s}) }} className={`px-4 py-2 font-mono font-bold rounded-xl border ${sel ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600'}`}>#{d.number}</button>
-                                        })}
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 fade-in">
+                                <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                                    <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Briefcase size={24} className="text-indigo-600"/> Handover Dokumen</h3><button onClick={()=>setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()})} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm"><X size={20}/></button></div>
+                                    <div className="p-8 overflow-y-auto flex-1">
+                                        <div className="mb-8"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 pl-1">Nama Penerima (Penimbang)</label><input type="text" placeholder="Ketik nama..." className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-black text-slate-800 text-lg" value={giveModal.penimbangName} onChange={e=>setGiveModal({...giveModal,penimbangName:e.target.value})}/></div>
+                                        <div className="mb-4 flex justify-between items-end"><label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Pilih Dokumen Diserahkan</label><span className="text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-1.5 rounded-lg shadow-sm">{giveModal.selected.size} Dipilih</span></div>
+                                        <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl flex flex-wrap gap-2.5 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {(gDrawer[giveModal.teamId]||[]).map(d => {
+                                                const sel = giveModal.selected.has(d.id);
+                                                return <button key={d.id} onClick={()=>{const set=new Set(giveModal.selected); sel?set.delete(d.id):set.add(d.id); setGiveModal({...giveModal,selected:set})}} className={`px-4 py-2.5 rounded-xl text-sm font-mono font-bold border transition-all active:scale-95 ${sel?'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/30':'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>{sel&&<CheckCircle2 size={16} className="inline mr-1.5"/>}#{d.number}</button>
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4">
-                                        <button onClick={() => setGiveModal({isOpen:false})} className="flex-1 bg-slate-100 py-4 font-bold rounded-2xl text-slate-600">Batal</button>
-                                        <button onClick={confirmHandover} className="flex-1 bg-indigo-600 py-4 font-bold rounded-2xl text-white">Serahkan ({giveModal.selectedDocs.size})</button>
-                                    </div>
+                                    <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-end gap-3"><button onClick={()=>setGiveModal({isOpen:false,teamId:null,penimbangName:'',selected:new Set()})} className="w-full sm:w-auto px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batalkan</button><button onClick={confirmHandover} className="w-full sm:w-auto px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"><UserCheck size={20}/> Serahkan Resmi</button></div>
                                 </div>
                             </div>
                         )}
@@ -825,72 +969,290 @@
                 );
             };
 
-            // ==========================================
-            // COMPONENT: MONITOR TIM
-            // ==========================================
             const MonitorTimView = () => {
                 const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id || '');
-                if (teams.length === 0) return <div className="p-8 text-center text-slate-500">Belum ada tim terdaftar.</div>;
+                const [visibleCount, setVisibleCount] = useState(100);
+
+                useEffect(() => { setVisibleCount(100); }, [selectedTeamId]);
+
+                if (teams.length === 0) return <div className="p-16 text-center text-slate-500 font-medium text-lg">Belum ada data tim. Silakan daftarkan di Master Tim.</div>;
 
                 const teamDocs = documents.filter(d => d.teamId === selectedTeamId);
-                const tTerpakai = teamDocs.filter(d => d.status === 'TERPAKAI').length;
-                const tDialokasikan = teamDocs.filter(d => d.status === 'DIALOKASIKAN').length;
-                const tLaci = teamDocs.filter(d => d.status === 'DI_ADMIN').length;
-                const tPenimbang = teamDocs.filter(d => d.status === 'DI_PENIMBANG').length;
-                
-                const total = teamDocs.length || 1; // avoid division by zero
+                const teamBatches = batches.filter(b => b.teamId === selectedTeamId);
+
+                const statTerpakai = teamDocs.filter(d => d.status === 'TERPAKAI').length;
+                const statDialokasikan = teamDocs.filter(d => d.status === 'DIALOKASIKAN').length;
+                const statLaci = teamDocs.filter(d => d.status === 'DI_ADMIN').length;
+                const statPenimbang = teamDocs.filter(d => d.status === 'DI_PENIMBANG').length;
+                const totalDocs = teamDocs.length;
+
+                const pTerpakai = totalDocs===0?0:(statTerpakai/totalDocs)*100;
+                const pDialokasikan = totalDocs===0?0:(statDialokasikan/totalDocs)*100;
+                const pLaci = totalDocs===0?0:(statLaci/totalDocs)*100;
+                const pPenimbang = totalDocs===0?0:(statPenimbang/totalDocs)*100;
 
                 return (
-                    <div className="flex flex-col lg:flex-row h-full animate-in fade-in duration-500">
-                        <div className="w-full lg:w-[320px] bg-white border-r border-slate-200/80 p-6 flex flex-col gap-3 overflow-y-auto">
+                    <div className="flex flex-col lg:flex-row h-full fade-in">
+                        <div className="w-full lg:w-[320px] bg-white border-r border-slate-200/80 p-6 flex flex-col gap-3 overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] shrink-0">
+                            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 pl-2">Pilih Dasbor Tim</h3>
                             {teams.map(t => (
-                                <button key={t.id} onClick={() => setSelectedTeamId(t.id)} className={`p-4 rounded-2xl font-bold text-left ${selectedTeamId === t.id ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600'}`}>{t.name}</button>
+                                <button key={t.id} onClick={() => setSelectedTeamId(t.id)} className={`text-left px-5 py-4 rounded-2xl font-bold transition-all flex items-center justify-between group ${selectedTeamId===t.id?'bg-slate-800 text-white shadow-xl shadow-slate-800/20 translate-x-1':'bg-white border border-slate-100 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}>
+                                    <div className="flex items-center gap-3"><div className={`p-2 rounded-xl transition-colors ${selectedTeamId===t.id?'bg-slate-700 text-white':'bg-slate-100 text-slate-400 group-hover:text-slate-600'}`}><Users size={18}/></div><span className="truncate max-w-[160px] tracking-tight text-base">{t.name}</span></div>
+                                    {selectedTeamId===t.id&&<ChevronRight size={18} className="text-slate-400"/>}
+                                </button>
                             ))}
                         </div>
-                        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
-                            <h2 className="text-4xl font-black text-slate-800">Kinerja: {teams.find(t=>t.id===selectedTeamId)?.name}</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                <div className="bg-white p-6 rounded-3xl border border-slate-200/60"><p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Dokumen</p><p className="text-5xl font-black text-slate-800">{teamDocs.length}</p></div>
-                                <div className="bg-emerald-500 p-6 rounded-3xl text-white"><p className="text-xs font-bold text-emerald-200 uppercase mb-2">Selesai</p><p className="text-5xl font-black">{tTerpakai}</p></div>
-                                <div className="bg-amber-500 p-6 rounded-3xl text-white"><p className="text-xs font-bold text-amber-200 uppercase mb-2">Laci Admin</p><p className="text-5xl font-black">{tLaci}</p></div>
-                                <div className="bg-indigo-500 p-6 rounded-3xl text-white"><p className="text-xs font-bold text-indigo-200 uppercase mb-2">Di Penimbang</p><p className="text-5xl font-black">{tPenimbang}</p></div>
+
+                        <div className="flex-1 p-4 md:p-8 md:px-10 overflow-y-auto space-y-8 bg-slate-50/50 custom-scrollbar">
+                            <div className="flex items-center gap-5 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200/60">
+                                <div className="w-20 h-20 bg-sky-100 text-sky-600 rounded-3xl flex items-center justify-center shadow-inner"><BarChart3 size={36}/></div>
+                                <div><h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight mb-1">{getTeamName(selectedTeamId)}</h2><p className="text-slate-500 font-medium">Analitik lengkap sirkulasi dokumen BTPA tim terkait.</p></div>
+                            </div>
+                            
+                            {totalDocs === 0 ? (
+                                <div className="p-20 text-center text-slate-400 bg-white rounded-[2rem] border-2 border-dashed border-slate-200/80"><Activity size={64} className="mx-auto mb-6 opacity-20"/><p className="text-2xl font-black text-slate-600 tracking-tight mb-2">Belum ada rekam jejak</p><p className="text-lg">Tim ini belum memiliki riwayat sirkulasi dokumen.</p></div>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+                                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors"><div className="absolute -right-6 -top-6 text-slate-50 group-hover:scale-110 transition-transform duration-500"><FileText size={120} /></div><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Total Dokumen</p><p className="text-4xl md:text-5xl font-black text-slate-800 relative z-10 tracking-tighter">{totalDocs}</p></div>
+                                        <div className="bg-emerald-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-emerald-500/20 relative overflow-hidden group text-white"><div className="absolute -right-6 -top-6 text-emerald-400/30 group-hover:scale-110 transition-transform duration-500"><CheckCircle2 size={120} /></div><p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Selesai</p><p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statTerpakai}</p></div>
+                                        <div className="bg-amber-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-amber-500/20 relative overflow-hidden group text-white"><div className="absolute -right-6 -top-6 text-amber-400/30 group-hover:scale-110 transition-transform duration-500"><Inbox size={120} /></div><p className="text-amber-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Di Laci</p><p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statLaci}</p></div>
+                                        <div className="bg-indigo-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-indigo-500/20 relative overflow-hidden group text-white"><div className="absolute -right-6 -top-6 text-indigo-400/30 group-hover:scale-110 transition-transform duration-500"><UserCheck size={120} /></div><p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Di Penimbang</p><p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statPenimbang}</p></div>
+                                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors"><div className="absolute -right-6 -top-6 text-slate-50 group-hover:scale-110 transition-transform duration-500"><Activity size={120} /></div><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Gantung</p><p className="text-4xl md:text-5xl font-black text-slate-800 relative z-10 tracking-tighter">{statDialokasikan}</p></div>
+                                    </div>
+
+                                    <div className="bg-white p-6 md:p-10 rounded-3xl border border-slate-200/60 shadow-sm">
+                                        <div className="flex justify-between items-center mb-8"><h3 className="text-xl font-black text-slate-800 tracking-tight">Distribusi Status</h3><span className="text-[10px] font-black text-slate-400 bg-slate-100 px-4 py-2 rounded-xl uppercase tracking-widest shadow-inner hidden sm:block">100% Total Kapasitas</span></div>
+                                        <div className="h-12 w-full bg-slate-100 rounded-2xl overflow-hidden flex shadow-inner mb-8">
+                                            <div style={{width: `${pTerpakai}%`}} className="bg-emerald-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Selesai: ${pTerpakai.toFixed(1)}%`}>{pTerpakai>5&&`${pTerpakai.toFixed(0)}%`}</div>
+                                            <div style={{width: `${pLaci}%`}} className="bg-amber-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Laci: ${pLaci.toFixed(1)}%`}>{pLaci>5&&`${pLaci.toFixed(0)}%`}</div>
+                                            <div style={{width: `${pPenimbang}%`}} className="bg-indigo-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Penimbang: ${pPenimbang.toFixed(1)}%`}>{pPenimbang>5&&`${pPenimbang.toFixed(0)}%`}</div>
+                                            <div style={{width: `${pDialokasikan}%`}} className="bg-slate-300 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-slate-600 overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.05)]" title={`Menggantung: ${pDialokasikan.toFixed(1)}%`}>{pDialokasikan>5&&`${pDialokasikan.toFixed(0)}%`}</div>
+                                        </div>
+                                        <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-xs md:text-sm font-bold">
+                                            <div className="flex items-center gap-2"><div className="w-5 h-5 bg-emerald-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Selesai</span></div>
+                                            <div className="flex items-center gap-2"><div className="w-5 h-5 bg-amber-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Laci Admin</span></div>
+                                            <div className="flex items-center gap-2"><div className="w-5 h-5 bg-indigo-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Penimbang</span></div>
+                                            <div className="flex items-center gap-2"><div className="w-5 h-5 bg-slate-300 rounded-lg shadow-sm"></div> <span className="text-slate-600">Kandang</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                        <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col overflow-hidden">
+                                            <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50"><h3 className="text-xl font-black text-slate-800 tracking-tight">Riwayat Kandang</h3></div>
+                                            <div className="overflow-x-auto flex-1">
+                                                <table className="w-full text-left text-sm">
+                                                    <thead className="bg-white text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100"><tr><th className="px-6 md:px-8 py-5">Nama Kandang</th><th className="px-6 md:px-8 py-5">Tanggal</th><th className="px-6 md:px-8 py-5">Status</th><th className="px-6 md:px-8 py-5 text-center">Vol</th></tr></thead>
+                                                    <tbody className="divide-y divide-slate-100/80">
+                                                        {teamBatches.length === 0 ? (
+                                                            <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-medium">Belum ada riwayat kandang.</td></tr>
+                                                        ) : (
+                                                            teamBatches.map(b => (
+                                                                <tr key={b.id} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-6 md:px-8 py-5 font-black text-slate-700 text-base">{b.name}</td>
+                                                                    <td className="px-6 md:px-8 py-5 font-semibold text-slate-500 whitespace-nowrap">{b.date}</td>
+                                                                    <td className="px-6 md:px-8 py-5"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
+                                                                    <td className="px-6 md:px-8 py-5 text-center font-black text-slate-700 text-lg">{documents.filter(d=>d.batchId===b.id).length}</td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col">
+                                            <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center"><h3 className="text-xl font-black text-slate-800 tracking-tight">Log Nomor Dokumen</h3><span className="text-[10px] font-black uppercase tracking-widest bg-white border shadow-sm text-slate-500 px-3 py-1.5 rounded-lg hidden sm:block">Semua Status</span></div>
+                                            <div className="p-6 md:p-8 flex-1">
+                                                <div className="flex flex-wrap gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                                    {teamDocs.slice(0, visibleCount).map(d => {
+                                                        let c = 'bg-slate-50 border-slate-200 text-slate-500'; 
+                                                        if (d.status === 'TERPAKAI') c = 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm';
+                                                        if (d.status === 'DIALOKASIKAN') c = 'bg-white border-slate-200 text-slate-700 shadow-sm';
+                                                        if (d.status === 'DI_ADMIN') c = 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm';
+                                                        if (d.status === 'DI_PENIMBANG') c = 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm';
+                                                        return <span key={d.id} className={`px-3 py-1.5 border rounded-lg text-sm font-mono font-bold transition-all hover:brightness-95 cursor-default ${c}`} title={d.status}>#{d.number}</span>
+                                                    })}
+                                                </div>
+                                                {visibleCount < teamDocs.length && <div className="mt-8 text-center"><button onClick={() => setVisibleCount(p => p+100)} className="w-full sm:w-auto px-8 py-4 bg-slate-50 text-slate-600 font-black text-sm rounded-2xl hover:bg-slate-100 border border-slate-200 transition-all shadow-sm active:scale-95">Muat {teamDocs.length - visibleCount} Nomor Tersisa...</button></div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const GlobalSearchModal = () => {
+                if (!isSearchOpen) return null;
+
+                return (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-start justify-center z-[200] p-4 pt-16 md:pt-24 fade-in" onClick={() => setIsSearchOpen(false)}>
+                        <div className="bg-white rounded-[2rem] max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                            {/* Search Input Area */}
+                            <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-200 shrink-0 text-slate-400">
+                                    <Search size={24}/>
+                                </div>
+                                <input 
+                                    ref={searchInputRef}
+                                    type="text" 
+                                    placeholder="Ketik Nomor BTPA untuk melacak..."
+                                    className="flex-1 bg-transparent border-none outline-none font-black text-xl md:text-2xl text-slate-800 placeholder:text-slate-300"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    autoFocus
+                                />
+                                <button onClick={() => setIsSearchOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 bg-white rounded-full border shadow-sm shrink-0"><X size={20}/></button>
+                            </div>
+
+                            {/* Search Results Area */}
+                            <div className="p-4 md:p-6 overflow-y-auto flex-1 custom-scrollbar bg-slate-50">
+                                {searchQuery.trim() === '' ? (
+                                    <div className="text-center py-12 text-slate-400">
+                                        <Search size={48} className="mx-auto mb-4 opacity-20"/>
+                                        <p className="font-bold text-lg">Pencarian Cepat</p>
+                                        <p className="text-sm">Ketik sebagian atau seluruh nomor BTPA yang ingin dilacak.</p>
+                                    </div>
+                                ) : searchResults.length === 0 ? (
+                                    <div className="text-center py-12 text-slate-400">
+                                        <XCircle size={48} className="mx-auto mb-4 opacity-20"/>
+                                        <p className="font-bold text-lg text-slate-600">Tidak Ditemukan</p>
+                                        <p className="text-sm">Nomor <strong>#{searchQuery}</strong> tidak terdaftar di sistem.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 pl-2">Hasil Pelacakan (Max 10)</p>
+                                        {searchResults.map(doc => {
+                                            // Determine styles and info based on status
+                                            let badgeColor = 'bg-slate-100 text-slate-600';
+                                            let icon = <Activity size={18} />;
+                                            let statusText = 'MENGGANTUNG';
+                                            let locationInfo = `Kandang: ${getBatchName(doc.batchId)}`;
+
+                                            if (doc.status === 'TERPAKAI') {
+                                                badgeColor = 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+                                                icon = <CheckCircle2 size={18} />;
+                                                statusText = 'SELESAI (SAH)';
+                                                locationInfo = `Dipakai di: ${getBatchName(doc.batchId)}`;
+                                            } else if (doc.status === 'DI_ADMIN') {
+                                                badgeColor = 'bg-amber-100 text-amber-700 border border-amber-200';
+                                                icon = <Inbox size={18} />;
+                                                statusText = 'LACI ADMIN';
+                                                locationInfo = 'Tersimpan di Laci Kantor';
+                                            } else if (doc.status === 'DI_PENIMBANG') {
+                                                badgeColor = 'bg-indigo-100 text-indigo-700 border border-indigo-200';
+                                                icon = <UserCheck size={18} />;
+                                                statusText = 'DI PENIMBANG';
+                                                locationInfo = `Dibawa oleh: ${doc.penimbangName}`;
+                                            }
+
+                                            return (
+                                                <div key={doc.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:border-emerald-300 transition-colors">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${badgeColor.split(' ')[0]} ${badgeColor.split(' ')[1]}`}>
+                                                            {icon}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-mono font-black text-xl text-slate-800 tracking-wider">#{doc.number}</p>
+                                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-wider">{getTeamName(doc.teamId)}</span>
+                                                                <span className="text-xs font-semibold text-slate-500">{locationInfo}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm w-fit sm:w-auto text-center ${badgeColor}`}>
+                                                        {statusText}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 );
             };
 
-            // --- LAYOUT RENDERING ---
+            // Autofocus Search input when modal opens
+            useEffect(() => {
+                if (isSearchOpen && searchInputRef.current) {
+                    setTimeout(() => searchInputRef.current.focus(), 100);
+                }
+            }, [isSearchOpen]);
+
             return (
-                <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-900 selection:bg-emerald-200">
+                <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-900 selection:bg-emerald-200 selection:text-emerald-900">
+                    
+                    {/* Mobile Header */}
                     <div className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center z-30 sticky top-0 shadow-lg">
-                        <h1 className="font-black text-xl flex items-center gap-2"><div className="bg-emerald-500 p-1.5 rounded-lg"><Activity size={20} className="text-white"/></div> BTPA Hub</h1>
-                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-800 rounded-xl hover:bg-slate-700">{isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
+                        <h1 className="font-black text-2xl flex items-center gap-3 tracking-tight">
+                            <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 p-2 rounded-xl shadow-inner"><Activity size={22} className="text-white"/></div> BTPA Hub
+                        </h1>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setIsSearchOpen(true)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors text-emerald-400">
+                                <Search size={22} />
+                            </button>
+                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors active:scale-95">
+                                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                            </button>
+                        </div>
                     </div>
 
-                    <div className={`fixed inset-y-0 left-0 z-40 w-[300px] bg-white border-r border-slate-200/80 shadow-2xl md:shadow-none transform transition-transform duration-300 md:relative md:translate-x-0 flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    {/* Sidebar Desktop & Mobile */}
+                    <div className={`fixed inset-y-0 left-0 z-40 w-[300px] bg-white border-r border-slate-200/80 shadow-[10px_0_30px_rgba(0,0,0,0.05)] md:shadow-none transform transition-transform duration-500 ease-in-out md:relative md:translate-x-0 flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="p-8 hidden md:block">
-                            <h1 className="font-black text-3xl text-slate-800 flex items-center gap-4"><div className="bg-emerald-500 p-3 rounded-2xl text-white shadow-lg"><Activity size={28}/></div> BTPA Hub</h1>
+                            <h1 className="font-black text-3xl text-slate-800 flex items-center gap-4 tracking-tight">
+                                <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 p-3 rounded-[1.25rem] text-white shadow-lg shadow-emerald-500/30"><Activity size={28}/></div>
+                                BTPA Hub
+                            </h1>
                         </div>
+                        
                         <div className="flex-1 overflow-y-auto py-6 px-5 space-y-2 custom-scrollbar">
-                            <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Siklus Kandang</p>
-                            <NavItem id="chick-in" label="1. Buka Kandang (Input)" icon={PlusCircle} />
+                            
+                            {/* Tombol Pencarian Global (Sidebar) */}
+                            <div className="mb-6 hidden md:block">
+                                <button onClick={() => setIsSearchOpen(true)} className="w-full bg-slate-50 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 px-4 py-3.5 rounded-xl flex items-center gap-3 transition-all font-bold border border-slate-200 shadow-sm group">
+                                    <Search size={20} className="group-hover:scale-110 transition-transform" /> 
+                                    <span className="flex-1 text-left tracking-wide">Pencarian Cepat</span> 
+                                    <span className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded shadow-sm text-slate-400 font-black">🔍</span>
+                                </button>
+                            </div>
+
+                            <p className="px-4 text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 mt-4 md:mt-0">Siklus Kandang</p>
+                            <NavItem id="chick-in" label="1. Chick-in (Input)" icon={PlusCircle} />
                             <NavItem id="proses-panen" label="2. Proses Panen Aktif" icon={RefreshCw} />
-                            <div className="my-8 border-t border-slate-100 mx-4"></div>
-                            <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Inventaris & Gudang</p>
+                            
+                            <div className="my-6 border-t border-slate-100/80 mx-4"></div>
+                            
+                            <p className="px-4 text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Inventaris & Gudang</p>
                             <NavItem id="input-laci" label="Tambah Stok Laci" icon={Archive} />
                             <NavItem id="laci-admin" label="Gudang (Laci & PPL)" icon={Inbox} />
                             <NavItem id="monitor-tim" label="Dasbor Analitik Tim" icon={BarChart3} />
-                            <div className="my-8 border-t border-slate-100 mx-4"></div>
-                            <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Pengaturan</p>
+                            
+                            <div className="my-6 border-t border-slate-100/80 mx-4"></div>
+                            
+                            <p className="px-4 text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Manajemen Sistem</p>
                             <NavItem id="master-tim" label="Master Data Tim" icon={Users} />
                             <NavItem id="database" label="Backup & Restore" icon={Database} />
                         </div>
+                        
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                            <div className="bg-white p-4 rounded-2xl border border-slate-200 text-center shadow-sm">
+                                <p className="text-xs font-black text-slate-700 tracking-tight">Sistem Digital BTPA</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Enterprise v2.0</p>
+                                <p className="text-[9px] font-semibold text-slate-400 mt-3 border-t border-slate-100 pt-2">&copy; {new Date().getFullYear()} Teuku Muhammad Hafidh Rafif</p>
+                            </div>
+                        </div>
                     </div>
 
-                    {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 md:hidden" onClick={closeMobileMenu} />}
+                    {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300" onClick={closeMobileMenu} />}
 
-                    <div className="flex-1 overflow-y-auto md:h-screen relative custom-scrollbar">
+                    {/* Konten Utama */}
+                    <div className="flex-1 overflow-y-auto bg-slate-50/50 md:h-screen relative custom-scrollbar">
                         {activeMenu === 'master-tim' && <MasterTimView />}
                         {activeMenu === 'database' && <DatabaseView />}
                         {activeMenu === 'input-laci' && <InputLaciView />}
@@ -900,22 +1262,27 @@
                         {activeMenu === 'monitor-tim' && <MonitorTimView />}
                     </div>
 
+                    {/* --- KOMPONEN OVERLAY GLOBAL --- */}
+                    <GlobalSearchModal />
+
                     {alertConfig.isOpen && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                            <div className="bg-white rounded-[2rem] max-w-sm w-full p-8 shadow-2xl animate-in zoom-in-95 text-center">
-                                <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${alertConfig.type === 'success' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
+                        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center z-[150] p-4 fade-in">
+                            <div className="bg-white rounded-[2rem] max-w-sm w-full p-8 shadow-2xl border border-slate-100">
+                                <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ${alertConfig.type === 'success' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
                                     {alertConfig.type === 'success' ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
                                 </div>
-                                <h3 className="text-3xl font-black mb-2 text-slate-800">{alertConfig.title}</h3>
-                                <p className="text-slate-500 mb-8 font-medium">{alertConfig.message}</p>
-                                <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-4 rounded-2xl font-black text-lg ${alertConfig.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`}>Tutup Pesan</button>
+                                <h3 className="text-3xl font-black text-center mb-2 tracking-tight text-slate-800">{alertConfig.title}</h3>
+                                <p className="text-center text-slate-500 mb-8 font-medium leading-relaxed">{alertConfig.message}</p>
+                                <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all ${alertConfig.type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'}`}>
+                                    Tutup Pesan
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    <div className="fixed top-6 right-6 z-[80] flex flex-col gap-3 pointer-events-none">
+                    <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
                         {toasts.map(toast => (
-                            <div key={toast.id} className={`pointer-events-auto flex items-center gap-4 px-6 py-4 rounded-2xl shadow-xl ${toast.type === 'success' ? 'bg-slate-800 text-white' : 'bg-red-600 text-white'}`}>
+                            <div key={toast.id} className={`pointer-events-auto flex items-center gap-4 px-6 py-4 rounded-2xl shadow-xl fade-in ${toast.type === 'success' ? 'bg-slate-800 text-white border border-slate-700' : 'bg-red-600 text-white'}`}>
                                 {toast.type === 'success' ? <CheckCircle2 size={24} className="text-emerald-400" /> : <AlertCircle size={24} className="text-white" />}
                                 <p className="text-sm font-bold tracking-wide">{toast.message}</p>
                             </div>
