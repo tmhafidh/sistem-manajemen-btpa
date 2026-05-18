@@ -3,15 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Manajemen BTPA</title>
+    <title>Monitor BTPA</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & ReactDOM (Versi UMD untuk Browser) -->
+    <!-- Konfigurasi Tema Warna Dasar #f36d1c -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#fff3eb',
+                100: '#ffe4d1',
+                200: '#ffc8a3',
+                300: '#ffa26b',
+                400: '#ff7332',
+                500: '#f36d1c', // Warna Utama
+                600: '#e4540d',
+                700: '#be3c09',
+                800: '#973010',
+                900: '#7a2810',
+                950: '#421106',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Jembatan Fix untuk Bug Lucide-React UMD -->
+    <!-- Jembatan Fix untuk Bug Lucide-React -->
     <script>
         window.react = window.React;
         window['react-dom'] = window.ReactDOM;
@@ -20,7 +45,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide-react@0.292.0/dist/umd/lucide-react.min.js"></script>
 
-    <!-- Babel (Penerjemah JSX di Browser) -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-slate-100">
@@ -45,73 +70,74 @@
         const Upload = safeIcon('Upload'); const AlertTriangle = safeIcon('AlertTriangle'); const UserCheck = safeIcon('UserCheck');
         const Briefcase = safeIcon('Briefcase'); const Undo2 = safeIcon('Undo2'); const Edit = safeIcon('Edit');
         const ClipboardPaste = safeIcon('ClipboardPaste'); const FileCheck = safeIcon('FileCheck'); const Calendar = safeIcon('Calendar');
-        const MapPin = safeIcon('MapPin');
+        const MapPin = safeIcon('MapPin'); const Filter = safeIcon('Filter'); const Files = safeIcon('Files');
+        const LayoutDashboard = safeIcon('LayoutDashboard'); const Globe = safeIcon('Globe');
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
         // =========================================================================
-        // SISTEM AUTO-SAVE TERSTANDAR (100% AMAN DARI REFRESH)
+        // MESIN PENYIMPANAN SINKRON SUPER CEPAT (V5)
+        // Mengeksekusi penyimpanan ke browser seketika tanpa jeda render
         // =========================================================================
-        function useLocalStorage(key, initialValue) {
-            const [data, setData] = useState(() => {
+        function useSyncStorage(key, initialValue) {
+            const [state, setState] = useState(() => {
                 try {
                     const item = window.localStorage.getItem(key);
                     return item ? JSON.parse(item) : initialValue;
                 } catch (error) {
-                    console.error("Gagal membaca LocalStorage:", error);
+                    console.error("Gagal baca database:", error);
                     return initialValue;
                 }
             });
 
-            useEffect(() => {
-                try {
-                    window.localStorage.setItem(key, JSON.stringify(data));
-                } catch (error) {
-                    console.error("Gagal menyimpan ke LocalStorage:", error);
-                }
-            }, [key, data]);
+            const setSyncState = (value) => {
+                setState(prevState => {
+                    const newValue = value instanceof Function ? value(prevState) : value;
+                    try {
+                        window.localStorage.setItem(key, JSON.stringify(newValue));
+                    } catch (err) {
+                        console.error("Gagal simpan database:", err);
+                    }
+                    return newValue;
+                });
+            };
 
-            return [data, setData];
+            return [state, setSyncState];
         }
 
         const App = () => {
-          const [activeMenu, setActiveMenu] = useState('chick-in');
+          // --- GLOBAL STATES ---
+          const [activeMenu, setActiveMenu] = useState('dashboard');
           const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
           const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'success' });
           const [toasts, setToasts] = useState([]);
           
-          // MENGGUNAKAN KEY DATABASE BARU AGAR TIDAK BENTROK DENGAN CACHE LAMA
-          const [teams, setTeams] = useLocalStorage('BTPA_TEAMS_DB_FINAL', []);
-          const [batches, setBatches] = useLocalStorage('BTPA_BATCHES_DB_FINAL', []);
-          const [documents, setDocuments] = useLocalStorage('BTPA_DOCS_DB_FINAL', []);
+          const [teams, setTeams] = useSyncStorage('BTPA_TEAMS_V5', []);
+          const [batches, setBatches] = useSyncStorage('BTPA_BATCHES_V5', []);
+          const [documents, setDocuments] = useSyncStorage('BTPA_DOCS_V5', []);
 
-          // State Khusus Navigasi Pintar dari Pencarian
           const [globalNavTarget, setGlobalNavTarget] = useState({ type: null, id: null, keyword: null });
-
-          // Master Global Search State
           const [globalSearch, setGlobalSearch] = useState('');
           const [showSearchBox, setShowSearchBox] = useState(false);
 
+          // --- GLOBAL SEARCH LOGIC ---
           const searchResults = useMemo(() => {
               if (!globalSearch.trim()) return [];
               const query = globalSearch.toLowerCase().trim();
               let results = [];
 
-              // 1. Cari Kandang (Batches)
               batches.forEach(b => {
                   if (b.name.toLowerCase().includes(query)) {
                       results.push({ id: b.id, type: 'BATCH', title: b.name, subtitle: `Status: ${b.status} | Populasi: ${b.population}`, data: b });
                   }
               });
 
-              // 2. Cari Tim / PPL / Penimbang
               teams.forEach(t => {
                   if (t.name.toLowerCase().includes(query) || (t.ppl || '').toLowerCase().includes(query) || (t.penimbang || '').toLowerCase().includes(query)) {
                       results.push({ id: t.id, type: 'TEAM', title: t.name, subtitle: `PPL: ${t.ppl || '-'} | Penim: ${t.penimbang || '-'}`, data: t });
                   }
               });
 
-              // 3. Cari Nomor BTPA
               documents.forEach(d => {
                   if (d.number.includes(query)) {
                       const team = teams.find(t => t.id === d.teamId);
@@ -126,7 +152,7 @@
                   }
               });
 
-              return results.slice(0, 15); // Batasi hasil pencarian agar tidak nge-lag
+              return results.slice(0, 15);
           }, [globalSearch, documents, teams, batches]);
 
           const handleGlobalSearchResultClick = (res) => {
@@ -138,12 +164,12 @@
                       setActiveMenu('proses-panen');
                       setGlobalNavTarget({ type: 'BATCH', id: res.id, keyword: null });
                   } else {
-                      setActiveMenu('monitor-tim');
+                      setActiveMenu('dashboard');
                       setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
                       fireAlert('Info Kandang', 'Kandang ini sudah berstatus SELESAI. Anda diarahkan ke riwayat pada Dasbor Tim.', 'success');
                   }
               } else if (res.type === 'TEAM') {
-                  setActiveMenu('monitor-tim');
+                  setActiveMenu('dashboard');
                   setGlobalNavTarget({ type: 'TEAM', id: res.id, keyword: null });
               } else if (res.type === 'DOCUMENT') {
                   if (res.data.status === 'DIALOKASIKAN') {
@@ -153,11 +179,11 @@
                           setGlobalNavTarget({ type: 'BATCH', id: batch.id, keyword: res.data.number });
                           addToast(`Membuka Kandang untuk dokumen #${res.data.number}`, 'success');
                       } else {
-                          setActiveMenu('monitor-tim');
+                          setActiveMenu('dashboard');
                           setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
                       }
                   } else {
-                      setActiveMenu('monitor-tim');
+                      setActiveMenu('dashboard');
                       setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
                       addToast(`Menampilkan Dasbor Tim untuk dokumen #${res.data.number}`, 'success');
                   }
@@ -165,6 +191,7 @@
               closeMobileMenu();
           };
           
+          // --- GLOBAL HELPERS ---
           const addToast = (message, type = 'success') => {
             const id = generateId();
             setToasts(prev => [...prev, { id, message, type }]);
@@ -177,7 +204,6 @@
 
           const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
-          // Helper Format Tanggal (DD/MM/YYYY)
           const formatDate = (dateStr) => {
               if (!dateStr) return '-';
               const parts = dateStr.split('-');
@@ -192,17 +218,215 @@
                 onClick={() => { setActiveMenu(id); closeMobileMenu(); }}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
                   isActive 
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 font-semibold tracking-wide translate-x-1' 
+                    ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 font-semibold tracking-wide translate-x-1' 
                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 font-medium hover:translate-x-1'
                 }`}
               >
-                {Icon && <Icon size={20} className={`transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-500"}`} />}
+                {Icon && <Icon size={20} className={`transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-brand-500"}`} />}
                 <span>{label}</span>
               </button>
             );
           };
 
-          // --- VIEW: SCAN MASSAL ---
+          // ==========================================
+          // 1. DASHBOARD VIEW (MASTER HORIZONTAL)
+          // ==========================================
+          const DashboardView = () => {
+            const [selectedTeamId, setSelectedTeamId] = useState('ALL');
+            const [visibleCount, setVisibleCount] = useState(100);
+
+            useEffect(() => { setVisibleCount(100); }, [selectedTeamId]);
+
+            useEffect(() => {
+                if (globalNavTarget.type === 'TEAM' && globalNavTarget.id) {
+                    setSelectedTeamId(globalNavTarget.id);
+                    setGlobalNavTarget({ type: null, id: null, keyword: null });
+                }
+            }, [globalNavTarget]);
+
+            const targetDocs = selectedTeamId === 'ALL' ? documents : documents.filter(d => d.teamId === selectedTeamId);
+            const targetBatches = selectedTeamId === 'ALL' ? batches : batches.filter(b => b.teamId === selectedTeamId);
+
+            const statTerpakai = targetDocs.filter(d => d.status === 'TERPAKAI').length;
+            const statDialokasikan = targetDocs.filter(d => d.status === 'DIALOKASIKAN').length;
+            const statLaci = targetDocs.filter(d => d.status === 'DI_ADMIN').length;
+            const statPenimbang = targetDocs.filter(d => d.status === 'DI_PENIMBANG').length;
+            const totalDocs = targetDocs.length;
+
+            const pTerpakai = totalDocs === 0 ? 0 : (statTerpakai / totalDocs) * 100;
+            const pDialokasikan = totalDocs === 0 ? 0 : (statDialokasikan / totalDocs) * 100;
+            const pLaci = totalDocs === 0 ? 0 : (statLaci / totalDocs) * 100;
+            const pPenimbang = totalDocs === 0 ? 0 : (statPenimbang / totalDocs) * 100;
+
+            const headerTitle = selectedTeamId === 'ALL' ? 'Analitik Keseluruhan' : teams.find(t=>t.id===selectedTeamId)?.name;
+            const headerSubtitle = selectedTeamId === 'ALL' ? 'Ringkasan sirkulasi dokumen BTPA dan kandang di seluruh sistem.' : 'Analitik lengkap sirkulasi dokumen BTPA khusus untuk tim ini.';
+
+            return (
+              <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
+                
+                {/* Horizontal Team Filter */}
+                <div className="bg-white p-5 md:p-6 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col gap-3">
+                   <div className="flex items-center justify-between pl-2">
+                       <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pilih Dasbor Tim</h3>
+                       <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{teams.length} Tim Aktif</span>
+                   </div>
+                   <div className="flex flex-row overflow-x-auto pb-2 gap-3 custom-scrollbar">
+                      <button 
+                          onClick={() => setSelectedTeamId('ALL')} 
+                          className={`px-5 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shrink-0 ${selectedTeamId === 'ALL' ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/20' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'}`}
+                      >
+                          <Globe size={18}/>
+                          <span>Global Master</span>
+                      </button>
+
+                      {teams.map(t => (
+                          <button 
+                              key={t.id} 
+                              onClick={() => setSelectedTeamId(t.id)} 
+                              className={`px-5 py-3 rounded-2xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shrink-0 ${selectedTeamId === t.id ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'bg-white border border-slate-200 text-slate-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200'}`}
+                          >
+                              <Users size={18}/>
+                              <span>{t.name}</span>
+                          </button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Dashboard Header Info */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200/60">
+                   <div className="w-20 h-20 bg-gradient-to-br from-brand-100 to-orange-100 text-brand-600 rounded-3xl flex items-center justify-center shadow-inner shrink-0">
+                       {selectedTeamId === 'ALL' ? <Globe size={36}/> : <BarChart3 size={36}/>}
+                   </div>
+                   <div>
+                     <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight mb-1">{headerTitle}</h2>
+                     <p className="text-slate-500 font-medium">{headerSubtitle}</p>
+                   </div>
+                </div>
+                
+                {totalDocs === 0 ? (
+                   <div className="p-20 text-center text-slate-400 bg-white rounded-[2rem] border-2 border-dashed border-slate-200/80">
+                       <Activity size={64} className="mx-auto mb-6 opacity-20"/>
+                       <p className="text-2xl font-black text-slate-600 tracking-tight mb-2">Belum ada rekam jejak</p>
+                       <p className="text-lg">Belum ada riwayat sirkulasi dokumen untuk pilihan ini.</p>
+                   </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+                      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group hover:border-brand-200 transition-colors">
+                        <div className="absolute -right-6 -top-6 text-slate-50 group-hover:scale-110 transition-transform duration-500"><FileText size={120} /></div>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Total Dokumen</p>
+                        <p className="text-4xl md:text-5xl font-black text-slate-800 relative z-10 tracking-tighter">{totalDocs}</p>
+                      </div>
+                      <div className="bg-emerald-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-emerald-500/20 relative overflow-hidden group text-white">
+                        <div className="absolute -right-6 -top-6 text-emerald-400/30 group-hover:scale-110 transition-transform duration-500"><CheckCircle2 size={120} /></div>
+                        <p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Terpakai (Selesai)</p>
+                        <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statTerpakai}</p>
+                      </div>
+                      <div className="bg-brand-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-brand-500/20 relative overflow-hidden group text-white">
+                        <div className="absolute -right-6 -top-6 text-brand-400/30 group-hover:scale-110 transition-transform duration-500"><Inbox size={120} /></div>
+                        <p className="text-brand-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Laci Admin (Sisa)</p>
+                        <p className="text-4xl font-black relative z-10 tracking-tighter">{statLaci}</p>
+                      </div>
+                      <div className="bg-indigo-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-indigo-500/20 relative overflow-hidden group text-white">
+                        <div className="absolute -right-6 -top-6 text-indigo-400/30 group-hover:scale-110 transition-transform duration-500"><UserCheck size={120} /></div>
+                        <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Di Penimbang</p>
+                        <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statPenimbang}</p>
+                      </div>
+                      <div className="bg-slate-800 p-6 md:p-8 rounded-3xl shadow-lg shadow-slate-800/20 relative overflow-hidden group text-white">
+                         <div className="absolute -right-6 -top-6 text-slate-700/50 group-hover:scale-110 transition-transform duration-500"><Activity size={120} /></div>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Gantung di Kandang</p>
+                        <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statDialokasikan}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-10 rounded-3xl border border-slate-200/60 shadow-sm">
+                      <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight">Distribusi Status Dokumen</h3>
+                        <span className="text-xs font-black text-slate-400 bg-slate-100 px-4 py-2 rounded-xl uppercase tracking-widest shadow-inner">100% Total Kapasitas</span>
+                      </div>
+                      
+                      <div className="h-12 w-full bg-slate-100 rounded-2xl overflow-hidden flex shadow-inner mb-8">
+                        <div style={{width: `${pTerpakai}%`}} className="bg-emerald-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Selesai: ${pTerpakai.toFixed(1)}%`}>{pTerpakai>5&&`${pTerpakai.toFixed(0)}%`}</div>
+                        <div style={{width: `${pLaci}%`}} className="bg-brand-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Laci: ${pLaci.toFixed(1)}%`}>{pLaci>5&&`${pLaci.toFixed(0)}%`}</div>
+                        <div style={{width: `${pPenimbang}%`}} className="bg-indigo-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Penimbang: ${pPenimbang.toFixed(1)}%`}>{pPenimbang>5&&`${pPenimbang.toFixed(0)}%`}</div>
+                        <div style={{width: `${pDialokasikan}%`}} className="bg-slate-300 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-slate-600 overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.05)]" title={`Menggantung: ${pDialokasikan.toFixed(1)}%`}>{pDialokasikan>5&&`${pDialokasikan.toFixed(0)}%`}</div>
+                      </div>
+                      
+                      <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-sm font-bold">
+                        <div className="flex items-center gap-3"><div className="w-5 h-5 bg-emerald-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Selesai Terpakai</span></div>
+                        <div className="flex items-center gap-3"><div className="w-5 h-5 bg-brand-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Di Laci Admin</span></div>
+                        <div className="flex items-center gap-3"><div className="w-5 h-5 bg-indigo-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Di Penimbang</span></div>
+                        <div className="flex items-center gap-3"><div className="w-5 h-5 bg-slate-300 rounded-lg shadow-sm"></div> <span className="text-slate-600">Masih di Kandang</span></div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                      <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col overflow-hidden">
+                        <div className="p-8 border-b border-slate-100 bg-slate-50/50">
+                          <h3 className="text-xl font-black text-slate-800 tracking-tight">Riwayat Kandang Aktif & Selesai</h3>
+                        </div>
+                        <div className="overflow-x-auto flex-1">
+                          <table className="w-full text-left text-sm">
+                            <thead className="bg-white text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100">
+                              <tr>
+                                  <th className="px-8 py-5">Nama Kandang</th>
+                                  <th className="px-8 py-5">Tanggal</th>
+                                  <th className="px-8 py-5">Status</th>
+                                  <th className="px-8 py-5 text-center">Vol</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100/80">
+                              {targetBatches.length === 0 ? (
+                                <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-medium">Belum ada riwayat kandang.</td></tr>
+                              ) : (
+                                targetBatches.map(b => (
+                                  <tr key={b.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-8 py-4">
+                                      <p className="font-black text-slate-700 text-base">{b.name}</p>
+                                      {selectedTeamId === 'ALL' && <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">{teams.find(t=>t.id===b.teamId)?.name}</p>}
+                                    </td>
+                                    <td className="px-8 py-4 font-semibold text-slate-500">{formatDate(b.date)}</td>
+                                    <td className="px-8 py-4"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
+                                    <td className="px-8 py-4 text-center font-black text-slate-700 text-lg">{documents.filter(d=>d.batchId===b.id).length}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col">
+                        <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                          <h3 className="text-xl font-black text-slate-800 tracking-tight">Log Nomor Dokumen</h3>
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-white border shadow-sm text-slate-500 px-3 py-1.5 rounded-lg">Semua Status</span>
+                        </div>
+                        <div className="p-8 flex-1">
+                          <div className="flex flex-wrap gap-2.5 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                            {targetDocs.slice(0, visibleCount).map(d => {
+                              let color = 'bg-slate-50 border-slate-200 text-slate-500'; 
+                              if (d.status === 'TERPAKAI') color = 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm';
+                              if (d.status === 'DIALOKASIKAN') color = 'bg-white border-slate-200 text-slate-700 shadow-sm';
+                              if (d.status === 'DI_ADMIN') color = 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm';
+                              if (d.status === 'DI_PENIMBANG') color = 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm';
+                              return <span key={d.id} className={`px-3 py-1.5 border rounded-lg text-sm font-mono font-bold transition-all hover:brightness-95 cursor-default ${color}`} title={d.status}>#{d.number}</span>
+                            })}
+                          </div>
+                          {visibleCount < targetDocs.length && (
+                            <div className="mt-8 text-center"><button onClick={() => setVisibleCount(p => p+100)} className="px-8 py-4 bg-slate-50 text-slate-600 font-black text-sm rounded-2xl hover:bg-slate-100 border border-slate-200 transition-all shadow-sm active:scale-95">Muat {targetDocs.length - visibleCount} Nomor Tersisa...</button></div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          // ==========================================
+          // 2. SCAN MASSAL VIEW
+          // ==========================================
           const ScanMassalView = () => {
               const [inputText, setInputText] = useState('');
               const [scanResult, setScanResult] = useState(null);
@@ -210,9 +434,8 @@
               const handleProcessScan = () => {
                   if (!inputText.trim()) return fireAlert('Gagal', 'Masukkan nomor BTPA terlebih dahulu pada kotak teks.', 'error');
 
-                  // Deteksi semua angka dari teks
                   const numbers = inputText.match(/\d+/g) || [];
-                  const uniqueNumbers = [...new Set(numbers)]; // Buang duplikat
+                  const uniqueNumbers = [...new Set(numbers)]; 
 
                   if (uniqueNumbers.length === 0) return fireAlert('Gagal', 'Tidak ada angka yang terdeteksi dari teks yang Anda masukkan.', 'error');
 
@@ -220,7 +443,6 @@
                   let alreadyDoneCount = 0;
                   let notFoundList = [];
 
-                  // Proses update status
                   const updatedDocs = documents.map(doc => {
                       if (uniqueNumbers.includes(doc.number)) {
                           if (doc.status === 'TERPAKAI') {
@@ -234,7 +456,6 @@
                       return doc;
                   });
 
-                  // Cari nomor yang tidak terdaftar
                   const allFoundNumbers = documents.filter(d => uniqueNumbers.includes(d.number)).map(d => d.number);
                   notFoundList = uniqueNumbers.filter(n => !allFoundNumbers.includes(n));
 
@@ -247,7 +468,7 @@
               return (
                   <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
                       <div className="flex items-center gap-4 mb-8">
-                          <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><ClipboardPaste className="text-emerald-600" size={28}/></div>
+                          <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><ClipboardPaste className="text-brand-600" size={28}/></div>
                           <div>
                               <h2 className="text-3xl font-black text-slate-800 tracking-tight">Scan Massal (Global)</h2>
                               <p className="text-slate-500 font-medium mt-1">Copy-Paste daftar nomor BTPA yang dibawa tim dari Excel / WA.</p>
@@ -261,9 +482,9 @@
                                   value={inputText} 
                                   onChange={(e) => setInputText(e.target.value)} 
                                   placeholder="Contoh:&#10;1001&#10;1002&#10;1005&#10;Bisa dipisah enter atau koma..." 
-                                  className="w-full flex-1 min-h-[300px] p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-mono font-bold text-slate-700 resize-none"
+                                  className="w-full flex-1 min-h-[300px] p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-mono font-bold text-slate-700 resize-none"
                               ></textarea>
-                              <button onClick={handleProcessScan} className="mt-4 w-full bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all flex items-center justify-center gap-2"><FileCheck size={20}/> Proses Semua Nomor</button>
+                              <button onClick={handleProcessScan} className="mt-4 w-full bg-brand-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-brand-500/30 hover:bg-brand-400 active:scale-95 transition-all flex items-center justify-center gap-2"><FileCheck size={20}/> Proses Semua Nomor</button>
                           </div>
 
                           <div className="w-full md:w-1/2">
@@ -312,6 +533,9 @@
               );
           };
 
+          // ==========================================
+          // 3. MASTER TIM VIEW
+          // ==========================================
           const MasterTimView = () => {
             const [pplName, setPplName] = useState('');
             const [penimbangName, setPenimbangName] = useState('');
@@ -332,7 +556,7 @@
                 return;
               }
               
-              setTeams([...teams, { id: generateId(), name: combinedName, ppl: pplName.trim(), penimbang: penimbangName.trim() }]);
+              setTeams(prev => [...prev, { id: generateId(), name: combinedName, ppl: pplName.trim(), penimbang: penimbangName.trim() }]);
               setPplName('');
               setPenimbangName('');
               addToast(`Tim ${combinedName} berhasil ditambahkan!`, 'success');
@@ -345,7 +569,7 @@
                 fireAlert('Akses Ditolak', 'Tim ini sedang terikat pada data kandang atau memiliki dokumen BTPA. Hapus data terkait terlebih dahulu.', 'error');
                 return;
               }
-              setTeams(teams.filter(t => t.id !== id));
+              setTeams(prev => prev.filter(t => t.id !== id));
               addToast('Tim berhasil dihapus secara permanen', 'success');
             };
 
@@ -364,7 +588,7 @@
                 return;
               }
               
-              setTeams(teams.map(t => t.id === editModal.id ? { ...t, name: combinedName, ppl: editModal.ppl.trim(), penimbang: editModal.penimbang.trim() } : t));
+              setTeams(prev => prev.map(t => t.id === editModal.id ? { ...t, name: combinedName, ppl: editModal.ppl.trim(), penimbang: editModal.penimbang.trim() } : t));
               setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' });
               addToast('Data tim berhasil diperbarui!', 'success');
             };
@@ -372,7 +596,7 @@
             return (
               <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
                 <div className="flex items-center gap-4 mb-8">
-                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Users className="text-emerald-600" size={28}/></div>
+                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Users className="text-brand-600" size={28}/></div>
                   <div>
                     <h2 className="text-3xl font-black text-slate-800 tracking-tight">Master Data Tim</h2>
                     <p className="text-slate-500 font-medium mt-1">Kelola daftar tim pelaksana (kombinasi PPL & Penimbang).</p>
@@ -386,7 +610,7 @@
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama PPL</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Briefcase size={20} className="text-slate-400" /></div>
-                          <input type="text" value={pplName} onChange={(e) => setPplName(e.target.value)} placeholder="Ketik nama PPL..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white outline-none transition-all text-slate-700 font-semibold text-lg" />
+                          <input type="text" value={pplName} onChange={(e) => setPplName(e.target.value)} placeholder="Ketik nama PPL..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 focus:bg-white outline-none transition-all text-slate-700 font-semibold text-lg" />
                         </div>
                       </div>
                       <div className="hidden md:flex text-slate-300 font-black text-3xl mt-6">-</div>
@@ -394,7 +618,7 @@
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama Penimbang</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><UserCheck size={20} className="text-slate-400" /></div>
-                          <input type="text" value={penimbangName} onChange={(e) => setPenimbangName(e.target.value)} placeholder="Ketik nama Penimbang..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white outline-none transition-all text-slate-700 font-semibold text-lg" />
+                          <input type="text" value={penimbangName} onChange={(e) => setPenimbangName(e.target.value)} placeholder="Ketik nama Penimbang..." className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 focus:bg-white outline-none transition-all text-slate-700 font-semibold text-lg" />
                         </div>
                       </div>
                       <div className="w-full md:w-auto md:mt-6">
@@ -405,12 +629,12 @@
                     </div>
                     
                     {(pplName || penimbangName) && (
-                      <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-2 text-sm font-bold text-emerald-600 uppercase tracking-wider shrink-0">
+                      <div className="p-5 bg-brand-50 border border-brand-100 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-2 text-sm font-bold text-brand-600 uppercase tracking-wider shrink-0">
                           <CheckCircle2 size={20} /> Preview Tim:
                         </div>
-                        <div className="bg-white px-5 py-2.5 rounded-xl border border-emerald-200 shadow-sm text-slate-800 font-black text-xl tracking-tight">
-                          <span className="text-emerald-700">{pplName || 'PPL'}</span> <span className="text-slate-300 mx-2">-</span> <span className="text-emerald-700">{penimbangName || 'Penimbang'}</span>
+                        <div className="bg-white px-5 py-2.5 rounded-xl border border-brand-200 shadow-sm text-slate-800 font-black text-xl tracking-tight">
+                          <span className="text-brand-700">{pplName || 'PPL'}</span> <span className="text-slate-300 mx-2">-</span> <span className="text-brand-700">{penimbangName || 'Penimbang'}</span>
                         </div>
                       </div>
                     )}
@@ -440,7 +664,7 @@
                              <tr key={team.id} className="hover:bg-slate-50/50 transition-colors group">
                                <td className="px-8 py-5">
                                  <div className="flex items-center gap-5">
-                                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 flex items-center justify-center text-xl font-black shadow-inner shrink-0">
+                                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-100 to-orange-100 text-brand-700 flex items-center justify-center text-xl font-black shadow-inner shrink-0">
                                      {team.name.charAt(0).toUpperCase()}
                                    </div>
                                    <div>
@@ -474,7 +698,7 @@
                   <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
                      <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-slate-100">
                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Edit size={24} className="text-indigo-600"/> Edit Data Tim</h3>
+                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Edit size={24} className="text-brand-600"/> Edit Data Tim</h3>
                          <button onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
                        </div>
                        <form onSubmit={handleUpdateTeam}>
@@ -490,7 +714,7 @@
                          </div>
                          <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                            <button type="button" onClick={() => setEditModal({ isOpen: false, id: '', ppl: '', penimbang: '' })} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
-                           <button type="submit" className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan Perubahan</button>
+                           <button type="submit" className="px-8 py-4 font-black text-white bg-brand-500 rounded-2xl shadow-lg shadow-brand-500/30 hover:bg-brand-600 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan Perubahan</button>
                          </div>
                        </form>
                      </div>
@@ -500,6 +724,9 @@
             );
           };
 
+          // ==========================================
+          // 4. DATABASE VIEW
+          // ==========================================
           const DatabaseView = () => {
             const fileInputRef = useRef(null);
             const [restoreModal, setRestoreModal] = useState({ isOpen: false, data: null });
@@ -507,7 +734,7 @@
 
             const handleBackup = () => {
               const data = {
-                version: '4.0',
+                version: '5.0',
                 timestamp: new Date().toISOString(),
                 teams,
                 batches,
@@ -572,7 +799,7 @@
             return (
               <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
                 <div className="flex items-center gap-4 mb-8">
-                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Database className="text-emerald-600" size={28}/></div>
+                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><Database className="text-brand-600" size={28}/></div>
                   <div>
                     <h2 className="text-3xl font-black text-slate-800 tracking-tight">Database Sistem</h2>
                     <p className="text-slate-500 font-medium mt-1">Simpan cadangan data (Backup) atau pulihkan dari file (Restore).</p>
@@ -580,15 +807,15 @@
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200/60 text-center flex flex-col items-center justify-center space-y-4 group hover:shadow-md transition-all hover:border-emerald-200">
-                    <div className="w-24 h-24 bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-600 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner duration-500"><Download size={48} /></div>
+                  <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200/60 text-center flex flex-col items-center justify-center space-y-4 group hover:shadow-md transition-all hover:border-brand-200">
+                    <div className="w-24 h-24 bg-gradient-to-br from-brand-50 to-orange-50 text-brand-600 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner duration-500"><Download size={48} /></div>
                     <h3 className="text-2xl font-black text-slate-800 tracking-tight">Unduh Backup</h3>
                     <p className="text-slate-500 font-medium">Simpan seluruh data Tim, Kandang, dan Dokumen ke komputer (format .json).</p>
-                    <button onClick={handleBackup} className="mt-4 w-full bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-slate-900 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"><Download size={20} /> Ekspor Data</button>
+                    <button onClick={handleBackup} className="mt-4 w-full bg-slate-800 text-white py-4 rounded-2xl font-bold hover:bg-brand-600 active:scale-95 transition-all shadow-lg shadow-brand-500/30 flex items-center justify-center gap-2"><Download size={20} /> Ekspor Data</button>
                   </div>
 
                   <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200/60 text-center flex flex-col items-center justify-center space-y-4 group hover:shadow-md transition-all hover:border-amber-200">
-                    <div className="w-24 h-24 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-600 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner duration-500"><Upload size={48} /></div>
+                    <div className="w-24 h-24 bg-gradient-to-br from-amber-50 to-orange-50 text-brand-600 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner duration-500"><Upload size={48} /></div>
                     <h3 className="text-2xl font-black text-slate-800 tracking-tight">Restore Data</h3>
                     <p className="text-slate-500 font-medium">Pulihkan sistem menggunakan file backup. <span className="text-red-500 font-bold">Akan menimpa data saat ini.</span></p>
                     <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
@@ -637,6 +864,9 @@
             );
           };
 
+          // ==========================================
+          // 5. INPUT LACI VIEW
+          // ==========================================
           const InputLaciView = () => {
             const [teamId, setTeamId] = useState('');
             const [ranges, setRanges] = useState([{ from: '', to: '' }]);
@@ -704,7 +934,7 @@
                     setIsGenerating(false); return fireAlert('Gagal', 'Rentang nomor tidak valid atau nomor sudah ada di laci tim ini.', 'error');
                   }
 
-                  setDocuments([...documents, ...newDocs]);
+                  setDocuments(prev => [...prev, ...newDocs]);
                   fireAlert('Stok Laci Ditambahkan', `${newDocs.length} dokumen berhasil dimasukkan ke Laci Admin tim terkait.`, 'success');
                   setTeamId(''); setRanges([{ from: '', to: '' }]);
                 } finally {
@@ -741,12 +971,12 @@
                           <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200/60 transition-all hover:border-amber-200">
                             <div className="w-full md:flex-1">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mulai Nomor</label>
-                              <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} />
+                              <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} />
                             </div>
                             <div className="hidden md:block text-slate-300 font-black text-3xl mt-4">-</div>
                             <div className="w-full md:flex-1">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sampai Nomor</label>
-                              <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} />
+                              <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} />
                             </div>
                             <div className="w-full md:w-auto flex items-center justify-between gap-3 mt-2 md:mt-6 shrink-0">
                               {rangeCount > 0 ? <span className="bg-amber-100/50 text-amber-700 font-black text-sm px-4 py-3 rounded-xl border border-amber-200">{rangeCount} Lembar</span> : <span className="text-slate-400 px-4 py-3 text-sm font-medium">0 Lembar</span>}
@@ -755,7 +985,7 @@
                           </div>
                         )
                       })}
-                      <button onClick={handleAddRange} className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-amber-200 text-amber-600 font-bold rounded-2xl hover:bg-amber-50 transition-all flex items-center justify-center gap-2"><PlusCircle size={20}/> Tambah Baris Input</button>
+                      <button onClick={handleAddRange} className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-brand-200 text-brand-600 font-bold rounded-2xl hover:bg-brand-50 transition-all flex items-center justify-center gap-2"><PlusCircle size={20}/> Tambah Baris Input</button>
                    </div>
 
                    {conflictError && (
@@ -774,7 +1004,7 @@
                           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Total Dokumen Ditambahkan</p>
                           <p className="text-4xl font-black flex items-baseline gap-2">{totalGeneratedDocs} <span className="text-base font-bold text-slate-400">Lembar</span></p>
                         </div>
-                        <button onClick={handleGenerate} disabled={isGenerating || !teamId} className="w-full md:w-auto px-10 py-4 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black rounded-2xl transition-all shadow-lg shadow-amber-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2">
+                        <button onClick={handleGenerate} disabled={isGenerating || !teamId} className="w-full md:w-auto px-10 py-4 bg-brand-500 hover:bg-brand-600 text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-brand-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2">
                           {isGenerating ? <RefreshCw className="animate-spin"/> : <Archive size={20}/>} Simpan ke Laci
                         </button>
                       </div>
@@ -794,6 +1024,9 @@
             );
           };
 
+          // ==========================================
+          // 6. CHICK IN VIEW
+          // ==========================================
           const ChickInView = () => {
             const [formData, setFormData] = useState({ teamId: '', date: '', name: '', population: '' });
             const [ranges, setRanges] = useState([{ from: '', to: '' }]);
@@ -922,7 +1155,7 @@
                 {/* Panel Kiri: Form Kandang */}
                 <div className="w-full lg:w-[400px] shrink-0 space-y-6">
                   <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><PlusCircle size={28}/></div>
+                    <div className="w-14 h-14 bg-gradient-to-br from-brand-100 to-orange-100 text-brand-600 rounded-2xl flex items-center justify-center shadow-inner"><PlusCircle size={28}/></div>
                     <div>
                       <h2 className="text-2xl font-black text-slate-800 tracking-tight">1. Data Kandang</h2>
                       <p className="text-slate-500 font-medium text-sm mt-0.5">Informasi siklus panen.</p>
@@ -932,22 +1165,22 @@
                   <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200/60 space-y-6">
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Tim Pelaksana</label>
-                       <select className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-lg appearance-none cursor-pointer" value={formData.teamId} onChange={(e) => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'', to:''}]); setUsedDrawerDocs(new Set());}}>
+                       <select className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-slate-700 text-lg appearance-none cursor-pointer" value={formData.teamId} onChange={(e) => {setFormData({...formData, teamId: e.target.value}); setRanges([{from:'', to:''}]); setUsedDrawerDocs(new Set());}}>
                          <option value="">-- Pilih Tim --</option>
                          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                        </select>
                      </div>
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Tanggal Chick-in</label>
-                       <input type="date" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-lg" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
+                       <input type="date" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-slate-700 text-lg" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
                      </div>
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama Kandang</label>
-                       <input type="text" placeholder="Contoh: Kandang A1" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-lg placeholder:font-medium placeholder:text-slate-300" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                       <input type="text" placeholder="Contoh: Kandang A1" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-slate-700 text-lg" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                      </div>
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Populasi Ayam</label>
-                       <input type="number" placeholder="Contoh: 5000" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-lg placeholder:font-medium placeholder:text-slate-300" value={formData.population} onChange={(e) => setFormData({...formData, population: e.target.value})} />
+                       <input type="number" placeholder="Contoh: 5000" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-slate-700 text-lg" value={formData.population} onChange={(e) => setFormData({...formData, population: e.target.value})} />
                      </div>
 
                      <div className="bg-sky-50 border border-sky-100 p-6 rounded-2xl flex justify-between items-center mt-8">
@@ -963,7 +1196,7 @@
                 {/* Panel Kanan: Alokasi */}
                 <div className="flex-1 space-y-6">
                    <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner"><FileText size={28}/></div>
+                    <div className="w-14 h-14 bg-gradient-to-br from-brand-100 to-orange-100 text-brand-600 rounded-2xl flex items-center justify-center shadow-inner"><FileText size={28}/></div>
                     <div>
                       <h2 className="text-2xl font-black text-slate-800 tracking-tight">2. Alokasi BTPA</h2>
                       <p className="text-slate-500 font-medium text-sm mt-0.5">Berikan dokumen baru atau daur ulang dari Laci.</p>
@@ -984,8 +1217,8 @@
                               {drawerDocsAnalysis.groups.map((group, idx) => {
                                 const isUsed = usedDrawerDocs.has(group[0].id);
                                 return (
-                                  <button key={`g${idx}`} disabled={isUsed} onClick={() => injectRange(group[0].number, group[group.length-1].number, group.map(g=>g.id))} className={`px-4 py-2.5 rounded-xl border-2 font-black text-sm transition-all shadow-sm flex items-center gap-2 ${isUsed ? 'bg-amber-100/50 border-transparent text-amber-400 opacity-60' : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400 active:scale-95 cursor-pointer'}`}>
-                                    {isUsed ? <CheckCircle2 size={16}/> : <ListOrdered size={16}/>} #{group[0].number} - #{group[group.length-1].number} <span className="bg-amber-200/50 px-2 py-0.5 rounded-md text-[10px]">{group.length}x</span>
+                                  <button key={`g${idx}`} disabled={isUsed} onClick={() => injectRange(group[0].number, group[group.length-1].number, group.map(g=>g.id))} className={`px-4 py-2.5 rounded-xl border-2 font-black text-sm transition-all shadow-sm flex items-center gap-2 ${isUsed ? 'bg-amber-100/50 border-transparent text-amber-400 opacity-60' : 'bg-white border-brand-300 text-brand-700 hover:bg-brand-100 hover:border-brand-400 active:scale-95 cursor-pointer'}`}>
+                                    {isUsed ? <CheckCircle2 size={16}/> : <ListOrdered size={16}/>} #{group[0].number} - #{group[group.length-1].number} <span className="bg-brand-200/50 px-2 py-0.5 rounded-md text-[10px]">{group.length}x</span>
                                   </button>
                                 )
                               })}
@@ -999,7 +1232,7 @@
                              {drawerDocsAnalysis.docs.map(doc => {
                                const isUsed = usedDrawerDocs.has(doc.id);
                                return (
-                                 <button key={doc.id} disabled={isUsed} onClick={() => injectRange(doc.number, doc.number, doc.id)} className={`px-3 py-1.5 rounded-lg border font-mono font-bold text-sm transition-all ${isUsed ? 'bg-amber-100/50 border-transparent text-amber-400 opacity-60 flex items-center gap-1' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm active:scale-95'}`}>
+                                 <button key={doc.id} disabled={isUsed} onClick={() => injectRange(doc.number, doc.number, doc.id)} className={`px-3 py-1.5 rounded-lg border font-mono font-bold text-sm transition-all ${isUsed ? 'bg-amber-100/50 border-transparent text-amber-400 opacity-60 flex items-center gap-1' : 'bg-white border-brand-200 text-brand-700 hover:bg-brand-100 shadow-sm active:scale-95'}`}>
                                    {isUsed && <CheckCircle2 size={12}/>} #{doc.number}
                                  </button>
                                )
@@ -1015,24 +1248,24 @@
                         const fromVal = parseInt(range.from); const toVal = parseInt(range.to);
                         const rangeCount = (!isNaN(fromVal) && !isNaN(toVal) && fromVal <= toVal) ? (toVal - fromVal + 1) : 0;
                         return (
-                          <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200/60 transition-all hover:border-emerald-200">
+                          <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200/60 transition-all hover:border-brand-200">
                             <div className="w-full md:flex-1">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Mulai Nomor</label>
-                              <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} />
+                              <input type="number" placeholder="1001" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.from} onChange={(e) => handleRangeChange(idx, 'from', e.target.value)} />
                             </div>
                             <div className="hidden md:block text-slate-300 font-black text-3xl mt-4">-</div>
                             <div className="w-full md:flex-1">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sampai Nomor</label>
-                              <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} />
+                              <input type="number" placeholder="1005" className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none transition-all font-mono font-black tracking-widest text-xl text-slate-800 placeholder:text-slate-300" value={range.to} onChange={(e) => handleRangeChange(idx, 'to', e.target.value)} />
                             </div>
                             <div className="w-full md:w-auto flex items-center justify-between gap-3 mt-2 md:mt-6 shrink-0">
-                              {rangeCount > 0 ? <span className="bg-emerald-100/50 text-emerald-700 font-black text-sm px-4 py-3 rounded-xl border border-emerald-200">{rangeCount} Lembar</span> : <span className="text-slate-400 px-4 py-3 text-sm font-medium">0 Lembar</span>}
+                              {rangeCount > 0 ? <span className="bg-brand-100/50 text-brand-700 font-black text-sm px-4 py-3 rounded-xl border border-brand-200">{rangeCount} Lembar</span> : <span className="text-slate-400 px-4 py-3 text-sm font-medium">0 Lembar</span>}
                               <button onClick={() => handleRemoveRange(idx)} disabled={ranges.length === 1} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl disabled:opacity-30 transition-all"><Trash2 size={22}/></button>
                             </div>
                           </div>
                         )
                       })}
-                      <button onClick={handleAddRange} className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-emerald-200 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"><PlusCircle size={20}/> Tambah Baris Input</button>
+                      <button onClick={handleAddRange} className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-brand-200 text-brand-600 font-bold rounded-2xl hover:bg-brand-50 transition-all flex items-center justify-center gap-2"><PlusCircle size={20}/> Tambah Baris Input</button>
                     </div>
 
                     {/* Error Bentrok */}
@@ -1064,10 +1297,10 @@
                         <div className="flex items-center gap-3">
                           <p className="text-5xl font-black tracking-tight">{totalGeneratedDocs}</p>
                           {estimatedDocs > 0 && totalGeneratedDocs !== estimatedDocs && !conflictError && <span className="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 mt-2"><AlertTriangle size={14}/> Meleset Estimasi</span>}
-                          {estimatedDocs > 0 && totalGeneratedDocs === estimatedDocs && !conflictError && <span className="bg-emerald-500 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 mt-2 shadow-sm"><CheckCircle2 size={14}/> Pas Estimasi</span>}
+                          {estimatedDocs > 0 && totalGeneratedDocs === estimatedDocs && !conflictError && <span className="bg-brand-500 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 mt-2 shadow-sm"><CheckCircle2 size={14}/> Pas Estimasi</span>}
                         </div>
                       </div>
-                      <button onClick={handleGenerate} disabled={isGenerating || !!conflictError || !formData.teamId} className="w-full md:w-auto px-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-emerald-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-3">
+                      <button onClick={handleGenerate} disabled={isGenerating || !!conflictError || !formData.teamId} className="w-full md:w-auto px-10 py-5 bg-brand-500 hover:bg-brand-600 text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-brand-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-3">
                         {isGenerating ? <RefreshCw className="animate-spin"/> : <Play className="fill-current"/>} {isGenerating ? 'Memproses...' : 'Simpan Kandang'}
                       </button>
                     </div>
@@ -1077,15 +1310,33 @@
             );
           };
 
+          // ==========================================
+          // 7. PROSES PANEN VIEW
+          // ==========================================
           const ProsesPanenView = () => {
             const [selectedBatch, setSelectedBatch] = useState(null);
             const [visibleCount, setVisibleCount] = useState(50);
+            
             const [searchTerm, setSearchTerm] = useState('');
+            const [batchSearchTerm, setBatchSearchTerm] = useState('');
+            const [filterTeam, setFilterTeam] = useState('ALL');
+            const [sortByDate, setSortByDate] = useState('NEWEST');
+
             const [editBatchModal, setEditBatchModal] = useState({ isOpen: false, id: '', name: '', date: '', population: '' });
             
             const activeBatches = batches.filter(b => b.status === 'AKTIF');
 
-            // Hook untuk mendengarkan navigasi pintar dari global search
+            const processedBatches = useMemo(() => {
+                let filtered = activeBatches;
+                if (batchSearchTerm) filtered = filtered.filter(b => b.name.toLowerCase().includes(batchSearchTerm.toLowerCase()));
+                if (filterTeam !== 'ALL') filtered = filtered.filter(b => b.teamId === filterTeam);
+                return filtered.sort((a, b) => {
+                    const dateA = new Date(a.date).getTime();
+                    const dateB = new Date(b.date).getTime();
+                    return sortByDate === 'NEWEST' ? dateB - dateA : dateA - dateB;
+                });
+            }, [batches, batchSearchTerm, filterTeam, sortByDate]);
+
             useEffect(() => {
                 if (globalNavTarget.type === 'BATCH' && globalNavTarget.id) {
                     const targetBatch = activeBatches.find(b => b.id === globalNavTarget.id);
@@ -1095,7 +1346,6 @@
                             setSearchTerm(globalNavTarget.keyword);
                         }
                     }
-                    // Reset agar tidak dipanggil berulang
                     setGlobalNavTarget({ type: null, id: null, keyword: null });
                 }
             }, [globalNavTarget, activeBatches]);
@@ -1158,12 +1408,30 @@
               return (
                 <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
                   <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><RefreshCw className="text-emerald-600" size={28}/></div>
+                    <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><RefreshCw className="text-brand-600" size={28}/></div>
                     <div>
                       <h2 className="text-3xl font-black text-slate-800 tracking-tight">Proses Panen (Kandang Aktif)</h2>
                       <p className="text-slate-500 font-medium mt-1">Pilih kandang untuk memproses dan mencatat kepulangan dokumen BTPA.</p>
                     </div>
                   </div>
+
+                  {/* Panel Filter UI UX Baru */}
+                  {activeBatches.length > 0 && (
+                     <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200/60 flex flex-col md:flex-row gap-4 mb-6 relative z-20">
+                        <div className="flex-1 relative">
+                          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input type="text" placeholder="Cari nama kandang..." value={batchSearchTerm} onChange={e => setBatchSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 transition-all"/>
+                        </div>
+                        <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
+                          <option value="ALL">Semua Tim</option>
+                          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                        <select value={sortByDate} onChange={e => setSortByDate(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
+                          <option value="NEWEST">Terbaru (Tgl CI)</option>
+                          <option value="OLDEST">Terlama (Tgl CI)</option>
+                        </select>
+                     </div>
+                  )}
 
                   {activeBatches.length === 0 ? (
                     <div className="bg-white border border-slate-200/60 rounded-[2rem] p-20 text-center shadow-sm">
@@ -1171,28 +1439,35 @@
                       <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Tidak Ada Kandang Aktif</h3>
                       <p className="text-slate-500 text-lg">Semua kandang saat ini sudah ditutup atau belum ada yang di-input.</p>
                     </div>
+                  ) : processedBatches.length === 0 ? (
+                    <div className="bg-white border border-slate-200/60 rounded-[2rem] p-16 text-center shadow-sm">
+                      <div className="w-20 h-20 bg-slate-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4"><Search size={32} className="text-slate-300" /></div>
+                      <h3 className="text-xl font-black text-slate-800 tracking-tight mb-2">Pencarian Tidak Ditemukan</h3>
+                      <p className="text-slate-500">Coba ubah kata kunci pencarian atau filter tim.</p>
+                      <button onClick={() => {setBatchSearchTerm(''); setFilterTeam('ALL');}} className="mt-6 px-6 py-3 bg-brand-50 text-brand-600 font-bold rounded-xl hover:bg-brand-100 transition-colors">Reset Filter</button>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {activeBatches.map(batch => {
+                      {processedBatches.map(batch => {
                         const team = teams.find(t => t.id === batch.teamId)?.name || 'Tim Dihapus';
                         const unresolved = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').length;
                         return (
-                          <div key={batch.id} onClick={() => handleBatchClick(batch)} className="bg-white rounded-3xl p-8 border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-emerald-300 cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+                          <div key={batch.id} onClick={() => handleBatchClick(batch)} className="bg-white rounded-3xl p-8 border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-brand-300 cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
                             <div className="flex justify-between items-start mb-6">
                               <div>
-                                <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">{batch.name}</h3>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2 group-hover:text-brand-600 transition-colors">{batch.name}</h3>
                                 <div className="flex flex-col gap-2">
                                   <span className="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Users size={14}/> {team}</span>
-                                  <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Calendar size={14}/> Tgl CI: {formatDate(batch.date)}</span>
+                                  <span className="bg-brand-50 border border-brand-100 text-brand-600 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Calendar size={14}/> Tgl CI: {formatDate(batch.date)}</span>
                                 </div>
                               </div>
-                              <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-emerald-500/30 mt-1">Aktif</span>
+                              <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-brand-500/30 mt-1">Aktif</span>
                             </div>
                             <div className="flex items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100 mt-auto">
                               <div className="flex-1"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Populasi</p><p className="text-xl font-black text-slate-700">{batch.population}</p></div>
                               <div className="w-px h-10 bg-slate-200"></div>
-                              <div className="flex-1"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gantung</p><p className={`text-xl font-black flex items-center gap-1.5 ${unresolved > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>{unresolved > 0 ? unresolved : <><CheckCircle2 size={20}/> Bersih</>}</p></div>
+                              <div className="flex-1"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gantung</p><p className={`text-xl font-black flex items-center gap-1.5 ${unresolved > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>{unresolved > 0 ? unresolved : <span className="flex items-center gap-1"><CheckCircle2 size={20}/> Bersih</span>}</p></div>
                             </div>
                           </div>
                         );
@@ -1210,18 +1485,18 @@
 
             return (
               <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
-                <button onClick={() => setSelectedBatch(null)} className="text-slate-500 hover:text-emerald-600 text-sm font-bold flex items-center gap-2 mb-6 transition-all group w-max">
+                <button onClick={() => setSelectedBatch(null)} className="text-slate-500 hover:text-brand-600 text-sm font-bold flex items-center gap-2 mb-6 transition-all group w-max">
                   <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:-translate-x-1 transition-transform"><ChevronRight size={18} className="rotate-180" /></div>
                   Kembali ke Daftar Kandang
                 </button>
 
                 <div className="bg-slate-800 rounded-[2rem] p-8 md:p-10 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden text-white">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
                   <div>
                      <div className="flex flex-wrap items-center gap-4 mb-3">
                        <h2 className="text-4xl font-black tracking-tight">{selectedBatch.name}</h2>
                        <button onClick={() => setEditBatchModal({ isOpen: true, id: selectedBatch.id, name: selectedBatch.name, date: selectedBatch.date, population: selectedBatch.population })} className="bg-slate-700/50 hover:bg-indigo-500 text-white p-2 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm font-bold"><Edit size={16}/> Edit Kandang</button>
-                       <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">AKTIF</span>
+                       <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">AKTIF</span>
                      </div>
                      <p className="text-slate-300 font-medium flex flex-wrap items-center gap-5 text-sm">
                        <span className="flex items-center gap-2"><Users size={16} className="text-slate-400"/> {teams.find(t=>t.id === selectedBatch.teamId)?.name}</span>
@@ -1230,7 +1505,7 @@
                        <span className="flex items-center gap-2"><FileText size={16} className="text-slate-400"/> Total: {batchDocs.length} Dokumen</span>
                      </p>
                   </div>
-                  <button onClick={handleCloseBatch} className={`w-full md:w-auto px-10 py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all ${unresolvedCount === 0 ? 'bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-500/30 active:scale-95' : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'}`}>
+                  <button onClick={handleCloseBatch} className={`w-full md:w-auto px-10 py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all ${unresolvedCount === 0 ? 'bg-brand-500 text-white hover:bg-brand-400 shadow-lg shadow-brand-500/30 active:scale-95' : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'}`}>
                     <Archive size={24} /> Tutup Siklus Permanen
                   </button>
                 </div>
@@ -1247,7 +1522,7 @@
                    <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
                       <div className="relative flex-1 sm:min-w-[250px]">
                         <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input type="text" placeholder="Cari No. BTPA spesifik..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-semibold text-slate-700 transition-all" />
+                        <input type="text" placeholder="Cari No. BTPA spesifik..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-semibold text-slate-700 transition-all" />
                       </div>
                       <div className="w-px h-12 bg-slate-200 hidden sm:block"></div>
                       <button onClick={() => handleBulkAction('TERPAKAI')} disabled={unresolvedCount===0} className="flex-1 sm:flex-none px-6 py-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl hover:bg-emerald-100 font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"><CheckSquare size={20}/> Selesai Semua</button>
@@ -1299,7 +1574,7 @@
                   <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
                      <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-slate-100">
                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Edit size={24} className="text-indigo-600"/> Edit Data Kandang</h3>
+                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Edit size={24} className="text-brand-600"/> Edit Data Kandang</h3>
                          <button onClick={() => setEditBatchModal({ isOpen: false, id: '', name: '', date: '', population: '' })} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
                        </div>
                        <form onSubmit={submitEditBatch}>
@@ -1319,7 +1594,7 @@
                          </div>
                          <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                            <button type="button" onClick={() => setEditBatchModal({ isOpen: false, id: '', name: '', date: '', population: '' })} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
-                           <button type="submit" className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan Perubahan</button>
+                           <button type="submit" className="px-8 py-4 font-black text-white bg-brand-500 rounded-2xl shadow-lg shadow-brand-500/30 hover:bg-brand-600 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan Perubahan</button>
                          </div>
                        </form>
                      </div>
@@ -1329,6 +1604,9 @@
             );
           };
 
+          // ==========================================
+          // 8. LACI ADMIN VIEW
+          // ==========================================
           const LaciAdminView = () => {
             const [activeTab, setActiveTab] = useState('laci');
             const [givePenimbangModal, setGivePenimbangModal] = useState({ isOpen: false, teamId: null });
@@ -1355,7 +1633,8 @@
               if (!penimbangForm.name.trim() || penimbangForm.selectedDocs.size === 0) {
                 fireAlert('Gagal', 'Pastikan nama Penimbang dan minimal 1 dokumen telah dipilih.', 'error'); return;
               }
-              setDocuments(docs => docs.map(d => penimbangForm.selectedDocs.has(d.id) ? { ...d, status: 'DI_PENIMBANG', penimbangName: penimbangForm.name.trim() } : d));
+              const selectedIds = penimbangForm.selectedDocs;
+              setDocuments(docs => docs.map(d => selectedIds.has(d.id) ? { ...d, status: 'DI_PENIMBANG', penimbangName: penimbangForm.name.trim() } : d));
               setGivePenimbangModal({ isOpen: false, teamId: null });
               addToast(`Dokumen resmi dipindahkan ke tangan ${penimbangForm.name}`, 'success');
             };
@@ -1391,8 +1670,8 @@
                         {Object.entries(groupedDrawer).map(([teamId, docs]) => {
                           const team = teams.find(t => t.id === teamId);
                           return (
-                            <div key={teamId} className="bg-white rounded-3xl border border-slate-200/60 shadow-sm flex flex-col relative overflow-hidden group hover:shadow-lg hover:border-emerald-200 transition-all duration-300">
-                              <div className="absolute top-0 right-0 w-40 h-40 bg-slate-50 rounded-bl-full -z-10 group-hover:bg-emerald-50/50 transition-colors duration-500"></div>
+                            <div key={teamId} className="bg-white rounded-3xl border border-slate-200/60 shadow-sm flex flex-col relative overflow-hidden group hover:shadow-lg hover:border-brand-200 transition-all duration-300">
+                              <div className="absolute top-0 right-0 w-40 h-40 bg-slate-50 rounded-bl-full -z-10 group-hover:bg-brand-50/50 transition-colors duration-500"></div>
                               
                               <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
@@ -1466,20 +1745,20 @@
                          
                          <div className="mb-4 flex justify-between items-end">
                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Pilih Dokumen Diserahkan</label>
-                           <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-1.5 rounded-lg shadow-sm">{penimbangForm.selectedDocs.size} Dipilih</span>
+                           <span className="text-xs font-black text-brand-700 bg-brand-100 px-3 py-1.5 rounded-lg shadow-sm">{penimbangForm.selectedDocs.size} Dipilih</span>
                          </div>
                          
                          <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl flex flex-wrap gap-2.5 max-h-64 overflow-y-auto custom-scrollbar">
                             {availableTeamDocs.map(d => {
                               const sel = penimbangForm.selectedDocs.has(d.id);
-                              return <button key={d.id} onClick={() => {const set = new Set(penimbangForm.selectedDocs); sel ? set.delete(d.id) : set.add(d.id); setPenimbangForm({...penimbangForm, selectedDocs:set})}} className={`px-4 py-2 rounded-xl text-sm font-mono font-bold border transition-all active:scale-95 ${sel ? 'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/30' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>{sel && <CheckCircle2 size={14} className="inline mr-1.5"/>}#{d.number}</button>
+                              return <button key={d.id} onClick={() => {const set = new Set(penimbangForm.selectedDocs); sel ? set.delete(d.id) : set.add(d.id); setPenimbangForm({...penimbangForm, selectedDocs:set})}} className={`px-4 py-2 rounded-xl text-sm font-mono font-bold border transition-all active:scale-95 ${sel ? 'bg-brand-600 text-white border-brand-700 shadow-md shadow-brand-600/30' : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'}`}>{sel && <CheckCircle2 size={14} className="inline mr-1.5"/>}#{d.number}</button>
                             })}
                          </div>
                        </div>
                        
                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                          <button onClick={() => setGivePenimbangModal({isOpen:false, teamId:null})} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batalkan</button>
-                         <button onClick={submitGiveToPenimbang} className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><UserCheck size={20}/> Serahkan Resmi</button>
+                         <button onClick={submitGiveToPenimbang} className="px-8 py-4 font-black text-white bg-brand-500 rounded-2xl shadow-lg shadow-brand-500/30 hover:bg-brand-600 active:scale-95 transition-all flex items-center gap-2"><UserCheck size={20}/> Serahkan Resmi</button>
                        </div>
                      </div>
                   </div>
@@ -1488,181 +1767,20 @@
             );
           };
 
-          const MonitorTimView = () => {
-            const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id || '');
-            const [visibleCount, setVisibleCount] = useState(100);
-
-            useEffect(() => { setVisibleCount(100); }, [selectedTeamId]);
-
-            // Hook untuk navigasi dari Global Search
-            useEffect(() => {
-                if (globalNavTarget.type === 'TEAM' && globalNavTarget.id) {
-                    setSelectedTeamId(globalNavTarget.id);
-                    setGlobalNavTarget({ type: null, id: null, keyword: null });
-                }
-            }, [globalNavTarget]);
-
-            if (teams.length === 0) return <div className="p-16 text-center text-slate-500 font-medium text-lg">Belum ada data tim. Silakan daftarkan di Master Tim terlebih dahulu.</div>;
-
-            const teamDocs = documents.filter(d => d.teamId === selectedTeamId);
-            const teamBatches = batches.filter(b => b.teamId === selectedTeamId);
-
-            const statTerpakai = teamDocs.filter(d => d.status === 'TERPAKAI').length;
-            const statDialokasikan = teamDocs.filter(d => d.status === 'DIALOKASIKAN').length;
-            const statLaci = teamDocs.filter(d => d.status === 'DI_ADMIN').length;
-            const statPenimbang = teamDocs.filter(d => d.status === 'DI_PENIMBANG').length;
-            const totalDocs = teamDocs.length;
-
-            const pTerpakai = totalDocs === 0 ? 0 : (statTerpakai / totalDocs) * 100;
-            const pDialokasikan = totalDocs === 0 ? 0 : (statDialokasikan / totalDocs) * 100;
-            const pLaci = totalDocs === 0 ? 0 : (statLaci / totalDocs) * 100;
-            const pPenimbang = totalDocs === 0 ? 0 : (statPenimbang / totalDocs) * 100;
-
-            return (
-              <div className="flex flex-col lg:flex-row h-full animate-in slide-in-from-bottom-4 duration-500 fade-in">
-                <div className="w-full lg:w-[320px] bg-white border-r border-slate-200/80 p-6 flex flex-col gap-3 overflow-y-auto custom-scrollbar z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-                  <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 pl-2">Pilih Dasbor Tim</h3>
-                  {teams.map(t => (
-                    <button key={t.id} onClick={() => setSelectedTeamId(t.id)} className={`text-left px-5 py-4 rounded-2xl font-bold transition-all flex items-center justify-between group ${selectedTeamId === t.id ? 'bg-slate-800 text-white shadow-xl shadow-slate-800/20 translate-x-1' : 'bg-white border border-slate-100 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}>
-                      <div className="flex items-center gap-3">
-                         <div className={`p-2 rounded-xl transition-colors ${selectedTeamId === t.id ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-400 group-hover:text-slate-600'}`}><Users size={18}/></div>
-                         <span className="truncate max-w-[160px] tracking-tight text-base">{t.name}</span>
-                      </div>
-                      {selectedTeamId === t.id && <ChevronRight size={18} className="text-slate-400"/>}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex-1 p-4 md:p-8 md:px-10 overflow-y-auto space-y-8 bg-slate-50/50 custom-scrollbar">
-                  <div className="flex items-center gap-5 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200/60">
-                     <div className="w-20 h-20 bg-sky-100 text-sky-600 rounded-3xl flex items-center justify-center shadow-inner"><BarChart3 size={36}/></div>
-                     <div>
-                       <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight mb-1">{teams.find(t=>t.id===selectedTeamId)?.name}</h2>
-                       <p className="text-slate-500 font-medium">Analitik lengkap sirkulasi dokumen BTPA tim di lapangan dan arsip.</p>
-                     </div>
-                  </div>
-                  
-                  {totalDocs === 0 ? (
-                     <div className="p-20 text-center text-slate-400 bg-white rounded-[2rem] border-2 border-dashed border-slate-200/80"><Activity size={64} className="mx-auto mb-6 opacity-20"/><p className="text-2xl font-black text-slate-600 tracking-tight mb-2">Belum ada rekam jejak</p><p className="text-lg">Tim ini belum memiliki riwayat sirkulasi dokumen.</p></div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors">
-                          <div className="absolute -right-6 -top-6 text-slate-50 group-hover:scale-110 transition-transform duration-500"><FileText size={120} /></div>
-                          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Total Dokumen</p>
-                          <p className="text-4xl md:text-5xl font-black text-slate-800 relative z-10 tracking-tighter">{totalDocs}</p>
-                        </div>
-                        <div className="bg-emerald-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-emerald-500/20 relative overflow-hidden group text-white">
-                          <div className="absolute -right-6 -top-6 text-emerald-400/30 group-hover:scale-110 transition-transform duration-500"><CheckCircle2 size={120} /></div>
-                          <p className="text-emerald-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Terpakai (Selesai)</p>
-                          <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statTerpakai}</p>
-                        </div>
-                        <div className="bg-amber-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-amber-500/20 relative overflow-hidden group text-white">
-                          <div className="absolute -right-6 -top-6 text-amber-400/30 group-hover:scale-110 transition-transform duration-500"><Inbox size={120} /></div>
-                          <p className="text-amber-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Laci Admin (Sisa)</p>
-                          <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statLaci}</p>
-                        </div>
-                        <div className="bg-indigo-500 p-6 md:p-8 rounded-3xl shadow-lg shadow-indigo-500/20 relative overflow-hidden group text-white">
-                          <div className="absolute -right-6 -top-6 text-indigo-400/30 group-hover:scale-110 transition-transform duration-500"><UserCheck size={120} /></div>
-                          <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Di Penimbang</p>
-                          <p className="text-4xl md:text-5xl font-black relative z-10 tracking-tighter">{statPenimbang}</p>
-                        </div>
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors">
-                           <div className="absolute -right-6 -top-6 text-slate-50 group-hover:scale-110 transition-transform duration-500"><Activity size={120} /></div>
-                          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Gantung di Kandang</p>
-                          <p className="text-4xl md:text-5xl font-black text-slate-800 relative z-10 tracking-tighter">{statDialokasikan}</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-6 md:p-10 rounded-3xl border border-slate-200/60 shadow-sm">
-                        <div className="flex justify-between items-center mb-8">
-                          <h3 className="text-xl font-black text-slate-800 tracking-tight">Distribusi Status Dokumen</h3>
-                          <span className="text-xs font-black text-slate-400 bg-slate-100 px-4 py-2 rounded-xl uppercase tracking-widest shadow-inner">100% Total Kapasitas</span>
-                        </div>
-                        
-                        <div className="h-12 w-full bg-slate-100 rounded-2xl overflow-hidden flex shadow-inner mb-8">
-                          <div style={{width: `${pTerpakai}%`}} className="bg-emerald-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Selesai: ${pTerpakai.toFixed(1)}%`}>{pTerpakai>5&&`${pTerpakai.toFixed(0)}%`}</div>
-                          <div style={{width: `${pLaci}%`}} className="bg-amber-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Laci: ${pLaci.toFixed(1)}%`}>{pLaci>5&&`${pLaci.toFixed(0)}%`}</div>
-                          <div style={{width: `${pPenimbang}%`}} className="bg-indigo-500 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-white overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.1)]" title={`Penimbang: ${pPenimbang.toFixed(1)}%`}>{pPenimbang>5&&`${pPenimbang.toFixed(0)}%`}</div>
-                          <div style={{width: `${pDialokasikan}%`}} className="bg-slate-300 h-full transition-all duration-1000 ease-out flex items-center justify-center text-xs font-black text-slate-600 overflow-hidden shadow-[inset_0_-4px_0_rgba(0,0,0,0.05)]" title={`Menggantung: ${pDialokasikan.toFixed(1)}%`}>{pDialokasikan>5&&`${pDialokasikan.toFixed(0)}%`}</div>
-                        </div>
-                        
-                        <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-sm font-bold">
-                          <div className="flex items-center gap-3"><div className="w-5 h-5 bg-emerald-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Selesai Terpakai</span></div>
-                          <div className="flex items-center gap-3"><div className="w-5 h-5 bg-amber-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Di Laci Admin</span></div>
-                          <div className="flex items-center gap-3"><div className="w-5 h-5 bg-indigo-500 rounded-lg shadow-sm"></div> <span className="text-slate-600">Di Penimbang</span></div>
-                          <div className="flex items-center gap-3"><div className="w-5 h-5 bg-slate-300 rounded-lg shadow-sm"></div> <span className="text-slate-600">Masih di Kandang</span></div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                        <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-                          <div className="p-8 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Riwayat Kandang Aktif & Selesai</h3>
-                          </div>
-                          <div className="overflow-x-auto flex-1">
-                            <table className="w-full text-left text-sm">
-                              <thead className="bg-white text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100">
-                                <tr><th className="px-8 py-5">Nama Kandang</th><th className="px-8 py-5">Tanggal</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-center">Vol</th></tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100/80">
-                                {teamBatches.length === 0 ? (
-                                  <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-medium">Belum ada riwayat kandang untuk tim ini.</td></tr>
-                                ) : (
-                                  teamBatches.map(b => (
-                                    <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                                      <td className="px-8 py-5 font-black text-slate-700 text-base">{b.name}</td>
-                                      <td className="px-8 py-5 font-semibold text-slate-500">{formatDate(b.date)}</td>
-                                      <td className="px-8 py-5"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
-                                      <td className="px-8 py-5 text-center font-black text-slate-700 text-lg">{documents.filter(d=>d.batchId===b.id).length}</td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-
-                        <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm flex flex-col">
-                          <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Log Nomor Dokumen</h3>
-                            <span className="text-[10px] font-black uppercase tracking-widest bg-white border shadow-sm text-slate-500 px-3 py-1.5 rounded-lg">Semua Status</span>
-                          </div>
-                          <div className="p-8 flex-1">
-                            <div className="flex flex-wrap gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                              {teamDocs.slice(0, visibleCount).map(d => {
-                                let color = 'bg-slate-50 border-slate-200 text-slate-500'; 
-                                if (d.status === 'TERPAKAI') color = 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm';
-                                if (d.status === 'DIALOKASIKAN') color = 'bg-white border-slate-200 text-slate-700 shadow-sm';
-                                if (d.status === 'DI_ADMIN') color = 'bg-amber-50 border-amber-200 text-amber-700 shadow-sm';
-                                if (d.status === 'DI_PENIMBANG') color = 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm';
-                                return <span key={d.id} className={`px-3 py-1.5 border rounded-lg text-sm font-mono font-bold transition-all hover:brightness-95 cursor-default ${color}`} title={d.status}>#{d.number}</span>
-                              })}
-                            </div>
-                            {visibleCount < teamDocs.length && (
-                              <div className="mt-8 text-center"><button onClick={() => setVisibleCount(p => p+100)} className="px-8 py-4 bg-slate-50 text-slate-600 font-black text-sm rounded-2xl hover:bg-slate-100 border border-slate-200 transition-all shadow-sm active:scale-95">Muat {teamDocs.length - visibleCount} Nomor Tersisa...</button></div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          };
-
+          // ==========================================
+          // RENDER UTAMA APLIKASI
+          // ==========================================
           return (
-            <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-900 selection:bg-emerald-200 selection:text-emerald-900">
+            <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-900 selection:bg-brand-200 selection:text-brand-900">
               
               {/* Mobile Header */}
-              <div className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center z-30 sticky top-0 shadow-lg">
-                <h1 className="font-black text-2xl flex items-center gap-3 tracking-tight">
-                   <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 p-2 rounded-xl shadow-inner"><Activity size={22} className="text-white"/></div> BTPA Hub
-                </h1>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors active:scale-95">
+              <div className="md:hidden bg-slate-900 text-white p-4 flex items-center gap-4 z-30 sticky top-0 shadow-lg">
+                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2.5 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors active:scale-95 shrink-0">
                   {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
+                <h1 className="font-black text-2xl flex items-center gap-3 tracking-tight">
+                   <div className="bg-gradient-to-br from-brand-400 to-brand-600 p-2 rounded-xl shadow-inner"><Files size={22} className="text-white"/></div> BTPA Monitor
+                </h1>
               </div>
 
               {/* Sidebar */}
@@ -1672,10 +1790,10 @@
               `}>
                 <div className="p-8 hidden md:block">
                   <h1 className="font-black text-3xl text-slate-800 flex items-center gap-4 tracking-tight">
-                    <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 p-3 rounded-[1.25rem] text-white shadow-lg shadow-emerald-500/30">
-                       <Activity size={28}/>
+                    <div className="bg-gradient-to-br from-brand-400 to-brand-600 p-3 rounded-[1.25rem] text-white shadow-lg shadow-brand-500/30">
+                       <Files size={28}/>
                     </div>
-                    BTPA Hub
+                    Monitor BTPA
                   </h1>
                 </div>
 
@@ -1688,7 +1806,7 @@
                         <input 
                             type="text" 
                             placeholder="Cari No. BTPA, Kandang, Tim..." 
-                            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-sm transition-all shadow-inner"
+                            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-slate-700 text-sm transition-all shadow-inner"
                             value={globalSearch}
                             onChange={(e) => {
                                 setGlobalSearch(e.target.value);
@@ -1712,7 +1830,7 @@
                                     let IconComponent = FileText;
                                     let iconColor = "text-amber-500 bg-amber-50 border-amber-100";
                                     
-                                    if (res.type === 'BATCH') { IconComponent = Activity; iconColor = "text-emerald-600 bg-emerald-50 border-emerald-100"; }
+                                    if (res.type === 'BATCH') { IconComponent = Activity; iconColor = "text-brand-600 bg-brand-50 border-brand-100"; }
                                     else if (res.type === 'TEAM') { IconComponent = Users; iconColor = "text-indigo-600 bg-indigo-50 border-indigo-100"; }
                                     else { IconComponent = FileText; iconColor = "text-sky-600 bg-sky-50 border-sky-100"; }
 
@@ -1734,6 +1852,11 @@
                 </div>
                 
                 <div className="flex-1 overflow-y-auto py-2 px-5 space-y-2 custom-scrollbar">
+                  <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 mt-2 md:mt-0">Menu Utama</p>
+                  <NavItem id="dashboard" label="Dasbor Analitik" icon={LayoutDashboard} />
+
+                  <div className="my-6 border-t border-slate-100 mx-4"></div>
+
                   <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Siklus Kandang</p>
                   <NavItem id="chick-in" label="1. Buka Kandang (Input)" icon={PlusCircle} />
                   <NavItem id="proses-panen" label="2. Proses Panen Aktif" icon={RefreshCw} />
@@ -1744,7 +1867,6 @@
                   <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Inventaris & Gudang</p>
                   <NavItem id="input-laci" label="Tambah Stok Laci" icon={Archive} />
                   <NavItem id="laci-admin" label="Gudang (Laci & PPL)" icon={Inbox} />
-                  <NavItem id="monitor-tim" label="Dasbor Analitik Tim" icon={BarChart3} />
                   
                   <div className="my-6 border-t border-slate-100 mx-4"></div>
                   
@@ -1756,7 +1878,7 @@
                 <div className="p-6 border-t border-slate-100 bg-slate-50/50">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 text-center shadow-sm">
                     <p className="text-xs font-black text-slate-700 tracking-tight">Sistem Digital BTPA</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">&copy; 2026 Teuku Muhammad Hafidh Rafif • <span className="text-emerald-500 font-black">Auto-Save Aktif</span></p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">&copy; 2026 Teuku Muhammad Hafidh Rafif • <span className="text-brand-500 font-black">Auto-Save V5</span></p>
                   </div>
                 </div>
               </div>
@@ -1765,13 +1887,13 @@
 
               {/* Main Content Area */}
               <div className="flex-1 overflow-y-auto bg-slate-50/50 md:h-screen relative custom-scrollbar">
+                {activeMenu === 'dashboard' && <DashboardView />}
                 {activeMenu === 'master-tim' && <MasterTimView />}
                 {activeMenu === 'database' && <DatabaseView />}
                 {activeMenu === 'input-laci' && <InputLaciView />}
                 {activeMenu === 'chick-in' && <ChickInView />}
                 {activeMenu === 'proses-panen' && <ProsesPanenView />}
                 {activeMenu === 'laci-admin' && <LaciAdminView />}
-                {activeMenu === 'monitor-tim' && <MonitorTimView />}
                 {activeMenu === 'scan-massal' && <ScanMassalView />}
               </div>
 
@@ -1784,7 +1906,7 @@
                     </div>
                     <h3 className="text-3xl font-black text-center mb-2 tracking-tight text-slate-800">{alertConfig.title}</h3>
                     <p className="text-center text-slate-500 mb-8 font-medium leading-relaxed">{alertConfig.message}</p>
-                    <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all ${alertConfig.type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'}`}>
+                    <button onClick={() => setAlertConfig({...alertConfig, isOpen: false})} className={`w-full text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all ${alertConfig.type === 'success' ? 'bg-brand-500 hover:bg-brand-600 shadow-brand-500/30' : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'}`}>
                       Tutup Pesan
                     </button>
                   </div>
