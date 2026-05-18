@@ -27,54 +27,52 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // PENTING: Jangan gunakan 'import' di sini. Kita ambil dari variabel global (Window)
         const { useState, useEffect, useMemo, useRef } = React;
         
-        // Memperbaiki referensi library ikon dengan fungsi fallback (Anti-Crash Error #130)
+        // Anti-Crash Icons Fallback
         const Icons = window.lucideReact || window.LucideReact || window.lucide || {};
-        
         const safeIcon = (name) => Icons[name] || (({size=24, className=""}) => (
-          <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-             <circle cx="12" cy="12" r="10"></circle>
-             <line x1="12" y1="8" x2="12" y2="12"></line>
-             <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
+          <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
         ));
 
-        const Menu = safeIcon('Menu');
-        const X = safeIcon('X');
-        const Users = safeIcon('Users');
-        const PlusCircle = safeIcon('PlusCircle');
-        const Inbox = safeIcon('Inbox');
-        const Activity = safeIcon('Activity');
-        const Trash2 = safeIcon('Trash2');
-        const CheckCircle2 = safeIcon('CheckCircle2');
-        const XCircle = safeIcon('XCircle');
-        const AlertCircle = safeIcon('AlertCircle');
-        const RefreshCw = safeIcon('RefreshCw');
-        const CheckSquare = safeIcon('CheckSquare');
-        const Archive = safeIcon('Archive');
-        const ChevronRight = safeIcon('ChevronRight');
-        const ListOrdered = safeIcon('ListOrdered');
-        const FileText = safeIcon('FileText');
-        const BarChart3 = safeIcon('BarChart3');
-        const Search = safeIcon('Search');
-        const Play = safeIcon('Play');
-        const Database = safeIcon('Database');
-        const Download = safeIcon('Download');
-        const Upload = safeIcon('Upload');
-        const AlertTriangle = safeIcon('AlertTriangle');
-        const UserCheck = safeIcon('UserCheck');
-        const Briefcase = safeIcon('Briefcase');
-        const Undo2 = safeIcon('Undo2');
-        const Edit = safeIcon('Edit');
+        const Menu = safeIcon('Menu'); const X = safeIcon('X'); const Users = safeIcon('Users');
+        const PlusCircle = safeIcon('PlusCircle'); const Inbox = safeIcon('Inbox'); const Activity = safeIcon('Activity');
+        const Trash2 = safeIcon('Trash2'); const CheckCircle2 = safeIcon('CheckCircle2'); const XCircle = safeIcon('XCircle');
+        const AlertCircle = safeIcon('AlertCircle'); const RefreshCw = safeIcon('RefreshCw'); const CheckSquare = safeIcon('CheckSquare');
+        const Archive = safeIcon('Archive'); const ChevronRight = safeIcon('ChevronRight'); const ListOrdered = safeIcon('ListOrdered');
+        const FileText = safeIcon('FileText'); const BarChart3 = safeIcon('BarChart3'); const Search = safeIcon('Search');
+        const Play = safeIcon('Play'); const Database = safeIcon('Database'); const Download = safeIcon('Download');
+        const Upload = safeIcon('Upload'); const AlertTriangle = safeIcon('AlertTriangle'); const UserCheck = safeIcon('UserCheck');
+        const Briefcase = safeIcon('Briefcase'); const Undo2 = safeIcon('Undo2'); const Edit = safeIcon('Edit');
+        const ClipboardPaste = safeIcon('ClipboardPaste'); const FileCheck = safeIcon('FileCheck'); const Calendar = safeIcon('Calendar');
+        const MapPin = safeIcon('MapPin');
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
-        const initialTeams = [
-          { id: 't1', name: 'Agus - Budi', ppl: 'Agus', penimbang: 'Budi' },
-          { id: 't2', name: 'Cipto - Doni', ppl: 'Cipto', penimbang: 'Doni' }
-        ];
+        // =========================================================================
+        // SISTEM AUTO-SAVE TERSTANDAR (100% AMAN DARI REFRESH)
+        // =========================================================================
+        function useLocalStorage(key, initialValue) {
+            const [data, setData] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    return item ? JSON.parse(item) : initialValue;
+                } catch (error) {
+                    console.error("Gagal membaca LocalStorage:", error);
+                    return initialValue;
+                }
+            });
+
+            useEffect(() => {
+                try {
+                    window.localStorage.setItem(key, JSON.stringify(data));
+                } catch (error) {
+                    console.error("Gagal menyimpan ke LocalStorage:", error);
+                }
+            }, [key, data]);
+
+            return [data, setData];
+        }
 
         const App = () => {
           const [activeMenu, setActiveMenu] = useState('chick-in');
@@ -82,17 +80,95 @@
           const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'success' });
           const [toasts, setToasts] = useState([]);
           
-          // Data Domain State
-          const [teams, setTeams] = useState(initialTeams);
-          const [batches, setBatches] = useState([]); 
-          const [documents, setDocuments] = useState([]); 
+          // MENGGUNAKAN KEY DATABASE BARU AGAR TIDAK BENTROK DENGAN CACHE LAMA
+          const [teams, setTeams] = useLocalStorage('BTPA_TEAMS_DB_FINAL', []);
+          const [batches, setBatches] = useLocalStorage('BTPA_BATCHES_DB_FINAL', []);
+          const [documents, setDocuments] = useLocalStorage('BTPA_DOCS_DB_FINAL', []);
+
+          // State Khusus Navigasi Pintar dari Pencarian
+          const [globalNavTarget, setGlobalNavTarget] = useState({ type: null, id: null, keyword: null });
+
+          // Master Global Search State
+          const [globalSearch, setGlobalSearch] = useState('');
+          const [showSearchBox, setShowSearchBox] = useState(false);
+
+          const searchResults = useMemo(() => {
+              if (!globalSearch.trim()) return [];
+              const query = globalSearch.toLowerCase().trim();
+              let results = [];
+
+              // 1. Cari Kandang (Batches)
+              batches.forEach(b => {
+                  if (b.name.toLowerCase().includes(query)) {
+                      results.push({ id: b.id, type: 'BATCH', title: b.name, subtitle: `Status: ${b.status} | Populasi: ${b.population}`, data: b });
+                  }
+              });
+
+              // 2. Cari Tim / PPL / Penimbang
+              teams.forEach(t => {
+                  if (t.name.toLowerCase().includes(query) || (t.ppl || '').toLowerCase().includes(query) || (t.penimbang || '').toLowerCase().includes(query)) {
+                      results.push({ id: t.id, type: 'TEAM', title: t.name, subtitle: `PPL: ${t.ppl || '-'} | Penim: ${t.penimbang || '-'}`, data: t });
+                  }
+              });
+
+              // 3. Cari Nomor BTPA
+              documents.forEach(d => {
+                  if (d.number.includes(query)) {
+                      const team = teams.find(t => t.id === d.teamId);
+                      const batch = batches.find(b => b.id === d.batchId);
+                      let statusText = d.status;
+                      if (d.status === 'DI_ADMIN') statusText = 'Laci Admin';
+                      else if (d.status === 'DIALOKASIKAN') statusText = `Kandang ${batch?.name || ''}`;
+                      else if (d.status === 'DI_PENIMBANG') statusText = `Penimbang: ${d.penimbangName}`;
+                      else if (d.status === 'TERPAKAI') statusText = 'Selesai Terpakai';
+
+                      results.push({ id: d.id, type: 'DOCUMENT', title: `BTPA #${d.number}`, subtitle: `Status: ${statusText} | Tim: ${team?.name || 'N/A'}`, data: d });
+                  }
+              });
+
+              return results.slice(0, 15); // Batasi hasil pencarian agar tidak nge-lag
+          }, [globalSearch, documents, teams, batches]);
+
+          const handleGlobalSearchResultClick = (res) => {
+              setGlobalSearch('');
+              setShowSearchBox(false);
+
+              if (res.type === 'BATCH') {
+                  if (res.data.status === 'AKTIF') {
+                      setActiveMenu('proses-panen');
+                      setGlobalNavTarget({ type: 'BATCH', id: res.id, keyword: null });
+                  } else {
+                      setActiveMenu('monitor-tim');
+                      setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
+                      fireAlert('Info Kandang', 'Kandang ini sudah berstatus SELESAI. Anda diarahkan ke riwayat pada Dasbor Tim.', 'success');
+                  }
+              } else if (res.type === 'TEAM') {
+                  setActiveMenu('monitor-tim');
+                  setGlobalNavTarget({ type: 'TEAM', id: res.id, keyword: null });
+              } else if (res.type === 'DOCUMENT') {
+                  if (res.data.status === 'DIALOKASIKAN') {
+                      const batch = batches.find(b => b.id === res.data.batchId);
+                      if (batch && batch.status === 'AKTIF') {
+                          setActiveMenu('proses-panen');
+                          setGlobalNavTarget({ type: 'BATCH', id: batch.id, keyword: res.data.number });
+                          addToast(`Membuka Kandang untuk dokumen #${res.data.number}`, 'success');
+                      } else {
+                          setActiveMenu('monitor-tim');
+                          setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
+                      }
+                  } else {
+                      setActiveMenu('monitor-tim');
+                      setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId, keyword: null });
+                      addToast(`Menampilkan Dasbor Tim untuk dokumen #${res.data.number}`, 'success');
+                  }
+              }
+              closeMobileMenu();
+          };
           
           const addToast = (message, type = 'success') => {
             const id = generateId();
             setToasts(prev => [...prev, { id, message, type }]);
-            setTimeout(() => {
-              setToasts(prev => prev.filter(t => t.id !== id));
-            }, 3000);
+            setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 3000);
           };
 
           const fireAlert = (title, message, type = 'success') => {
@@ -100,6 +176,14 @@
           };
 
           const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+          // Helper Format Tanggal (DD/MM/YYYY)
+          const formatDate = (dateStr) => {
+              if (!dateStr) return '-';
+              const parts = dateStr.split('-');
+              if (parts.length !== 3) return dateStr;
+              return `${parts[2]}/${parts[1]}/${parts[0]}`;
+          };
 
           const NavItem = ({ id, label, icon: Icon }) => {
             const isActive = activeMenu === id;
@@ -116,6 +200,116 @@
                 <span>{label}</span>
               </button>
             );
+          };
+
+          // --- VIEW: SCAN MASSAL ---
+          const ScanMassalView = () => {
+              const [inputText, setInputText] = useState('');
+              const [scanResult, setScanResult] = useState(null);
+
+              const handleProcessScan = () => {
+                  if (!inputText.trim()) return fireAlert('Gagal', 'Masukkan nomor BTPA terlebih dahulu pada kotak teks.', 'error');
+
+                  // Deteksi semua angka dari teks
+                  const numbers = inputText.match(/\d+/g) || [];
+                  const uniqueNumbers = [...new Set(numbers)]; // Buang duplikat
+
+                  if (uniqueNumbers.length === 0) return fireAlert('Gagal', 'Tidak ada angka yang terdeteksi dari teks yang Anda masukkan.', 'error');
+
+                  let successCount = 0;
+                  let alreadyDoneCount = 0;
+                  let notFoundList = [];
+
+                  // Proses update status
+                  const updatedDocs = documents.map(doc => {
+                      if (uniqueNumbers.includes(doc.number)) {
+                          if (doc.status === 'TERPAKAI') {
+                              alreadyDoneCount++;
+                              return doc;
+                          } else {
+                              successCount++;
+                              return { ...doc, status: 'TERPAKAI' };
+                          }
+                      }
+                      return doc;
+                  });
+
+                  // Cari nomor yang tidak terdaftar
+                  const allFoundNumbers = documents.filter(d => uniqueNumbers.includes(d.number)).map(d => d.number);
+                  notFoundList = uniqueNumbers.filter(n => !allFoundNumbers.includes(n));
+
+                  setDocuments(updatedDocs);
+                  setScanResult({ totalInput: uniqueNumbers.length, successCount, alreadyDoneCount, notFoundList });
+                  setInputText('');
+                  addToast(`Scan Selesai: ${successCount} berhasil diproses.`, 'success');
+              };
+
+              return (
+                  <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
+                      <div className="flex items-center gap-4 mb-8">
+                          <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><ClipboardPaste className="text-emerald-600" size={28}/></div>
+                          <div>
+                              <h2 className="text-3xl font-black text-slate-800 tracking-tight">Scan Massal (Global)</h2>
+                              <p className="text-slate-500 font-medium mt-1">Copy-Paste daftar nomor BTPA yang dibawa tim dari Excel / WA.</p>
+                          </div>
+                      </div>
+
+                      <div className="flex flex-col md:flex-row gap-6">
+                          <div className="w-full md:w-1/2 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200/60 flex flex-col">
+                              <label className="text-sm font-bold text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardPaste size={18}/> Paste Daftar Nomor BTPA</label>
+                              <textarea 
+                                  value={inputText} 
+                                  onChange={(e) => setInputText(e.target.value)} 
+                                  placeholder="Contoh:&#10;1001&#10;1002&#10;1005&#10;Bisa dipisah enter atau koma..." 
+                                  className="w-full flex-1 min-h-[300px] p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-mono font-bold text-slate-700 resize-none"
+                              ></textarea>
+                              <button onClick={handleProcessScan} className="mt-4 w-full bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all flex items-center justify-center gap-2"><FileCheck size={20}/> Proses Semua Nomor</button>
+                          </div>
+
+                          <div className="w-full md:w-1/2">
+                              {scanResult ? (
+                                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200/60 animate-in fade-in zoom-in-95 h-full flex flex-col">
+                                      <h3 className="text-lg font-black text-slate-800 mb-6 uppercase tracking-widest text-center border-b pb-4">Laporan Hasil Scan</h3>
+                                      
+                                      <div className="space-y-4 flex-1">
+                                          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                              <span className="font-bold text-slate-500">Total Terdeteksi:</span>
+                                              <span className="text-xl font-black text-slate-800">{scanResult.totalInput} Angka</span>
+                                          </div>
+                                          <div className="flex justify-between items-center p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                                              <span className="font-bold text-emerald-700">Sukses Menjadi Sah:</span>
+                                              <span className="text-xl font-black text-emerald-600">{scanResult.successCount} Lembar</span>
+                                          </div>
+                                          <div className="flex justify-between items-center p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                                              <span className="font-bold text-amber-700">Sudah Berstatus Sah Sebelumnya:</span>
+                                              <span className="text-xl font-black text-amber-600">{scanResult.alreadyDoneCount} Lembar</span>
+                                          </div>
+                                          <div className="flex justify-between items-center p-4 bg-red-50 border border-red-100 rounded-2xl">
+                                              <span className="font-bold text-red-700">Tidak Terdaftar di Sistem:</span>
+                                              <span className="text-xl font-black text-red-600">{scanResult.notFoundList.length} Lembar</span>
+                                          </div>
+                                      </div>
+
+                                      {scanResult.notFoundList.length > 0 && (
+                                          <div className="mt-6 p-4 border border-red-200 rounded-2xl bg-white">
+                                              <p className="text-xs font-black text-red-500 uppercase tracking-widest mb-2">Detail Nomor Tidak Ditemukan:</p>
+                                              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                                  {scanResult.notFoundList.map(n => <span key={n} className="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded font-mono text-sm">{n}</span>)}
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              ) : (
+                                  <div className="bg-slate-50/50 p-6 rounded-[2rem] border-2 border-dashed border-slate-200 h-full flex flex-col items-center justify-center text-center">
+                                      <FileCheck size={64} className="text-slate-300 mb-4" />
+                                      <h3 className="text-xl font-black text-slate-500 mb-2">Belum Ada Laporan</h3>
+                                      <p className="text-slate-400 font-medium">Masukkan nomor di sebelah kiri dan klik proses untuk melihat hasil pelacakan di sini.</p>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+              );
           };
 
           const MasterTimView = () => {
@@ -313,7 +507,7 @@
 
             const handleBackup = () => {
               const data = {
-                version: '2.0',
+                version: '4.0',
                 timestamp: new Date().toISOString(),
                 teams,
                 batches,
@@ -359,12 +553,12 @@
 
             const confirmRestore = () => {
               if (restoreModal.data) {
-                setTeams(restoreModal.data.teams);
-                setBatches(restoreModal.data.batches);
-                setDocuments(restoreModal.data.documents);
-                addToast('Sistem berhasil dipulihkan dari backup!', 'success');
+                setTeams(restoreModal.data.teams || []);
+                setBatches(restoreModal.data.batches || []);
+                setDocuments(restoreModal.data.documents || []);
+                setRestoreModal({ isOpen: false, data: null });
+                fireAlert('Restore Selesai', 'Sistem berhasil memulihkan data. Aplikasi sudah siap digunakan.', 'success');
               }
-              setRestoreModal({ isOpen: false, data: null });
             };
 
             const confirmReset = () => {
@@ -416,10 +610,10 @@
                     <div className="bg-white rounded-[2rem] max-w-md w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
                       <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><AlertTriangle size={36} /></div>
                       <h3 className="text-3xl font-black text-center text-slate-800 mb-2 tracking-tight">Timpa Data?</h3>
-                      <p className="text-center text-slate-500 mb-8 font-medium">Memulihkan data akan <strong className="text-red-500">menghapus seluruh data saat ini</strong>. Lanjutkan?</p>
+                      <p className="text-center text-slate-500 mb-8 font-medium">Memulihkan data akan <strong className="text-red-500">menghapus seluruh data saat ini secara instan</strong>. Lanjutkan?</p>
                       <div className="flex gap-3">
                         <button onClick={() => setRestoreModal({ isOpen: false, data: null })} className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Batal</button>
-                        <button onClick={confirmRestore} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black hover:bg-amber-600 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">Pulihkan</button>
+                        <button onClick={confirmRestore} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black hover:bg-amber-600 shadow-lg shadow-amber-500/30 active:scale-95 transition-all">Pulihkan Instan</button>
                       </div>
                     </div>
                   </div>
@@ -887,8 +1081,24 @@
             const [selectedBatch, setSelectedBatch] = useState(null);
             const [visibleCount, setVisibleCount] = useState(50);
             const [searchTerm, setSearchTerm] = useState('');
+            const [editBatchModal, setEditBatchModal] = useState({ isOpen: false, id: '', name: '', date: '', population: '' });
             
             const activeBatches = batches.filter(b => b.status === 'AKTIF');
+
+            // Hook untuk mendengarkan navigasi pintar dari global search
+            useEffect(() => {
+                if (globalNavTarget.type === 'BATCH' && globalNavTarget.id) {
+                    const targetBatch = activeBatches.find(b => b.id === globalNavTarget.id);
+                    if (targetBatch) {
+                        setSelectedBatch(targetBatch);
+                        if (globalNavTarget.keyword) {
+                            setSearchTerm(globalNavTarget.keyword);
+                        }
+                    }
+                    // Reset agar tidak dipanggil berulang
+                    setGlobalNavTarget({ type: null, id: null, keyword: null });
+                }
+            }, [globalNavTarget, activeBatches]);
 
             const handleBatchClick = (batch) => {
               setSelectedBatch(batch); setVisibleCount(50); setSearchTerm('');
@@ -919,6 +1129,31 @@
               setSelectedBatch(null);
             };
 
+            const submitEditBatch = (e) => {
+              e.preventDefault();
+              if (!editBatchModal.name.trim() || !editBatchModal.date || !editBatchModal.population) {
+                  return fireAlert('Validasi Gagal', 'Harap lengkapi semua data kandang.', 'error');
+              }
+              setBatches(bs => bs.map(b => b.id === editBatchModal.id ? {
+                  ...b,
+                  name: editBatchModal.name.trim(),
+                  date: editBatchModal.date,
+                  population: parseInt(editBatchModal.population) || 0
+              } : b));
+              
+              if (selectedBatch && selectedBatch.id === editBatchModal.id) {
+                  setSelectedBatch(prev => ({
+                      ...prev,
+                      name: editBatchModal.name.trim(),
+                      date: editBatchModal.date,
+                      population: parseInt(editBatchModal.population) || 0
+                  }));
+              }
+
+              setEditBatchModal({ isOpen: false, id: '', name: '', date: '', population: '' });
+              addToast('Data kandang berhasil diperbarui!', 'success');
+            };
+
             if (!selectedBatch) {
               return (
                 <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in slide-in-from-bottom-4 duration-500 fade-in">
@@ -944,12 +1179,15 @@
                         return (
                           <div key={batch.id} onClick={() => handleBatchClick(batch)} className="bg-white rounded-3xl p-8 border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-emerald-300 cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
-                            <div className="flex justify-between items-start mb-8">
+                            <div className="flex justify-between items-start mb-6">
                               <div>
                                 <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">{batch.name}</h3>
-                                <span className="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Users size={14}/> {team}</span>
+                                <div className="flex flex-col gap-2">
+                                  <span className="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Users size={14}/> {team}</span>
+                                  <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Calendar size={14}/> Tgl CI: {formatDate(batch.date)}</span>
+                                </div>
                               </div>
-                              <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-emerald-500/30">Aktif</span>
+                              <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-emerald-500/30 mt-1">Aktif</span>
                             </div>
                             <div className="flex items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100 mt-auto">
                               <div className="flex-1"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Populasi</p><p className="text-xl font-black text-slate-700">{batch.population}</p></div>
@@ -980,12 +1218,15 @@
                 <div className="bg-slate-800 rounded-[2rem] p-8 md:p-10 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden text-white">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
                   <div>
-                     <div className="flex items-center gap-4 mb-3">
+                     <div className="flex flex-wrap items-center gap-4 mb-3">
                        <h2 className="text-4xl font-black tracking-tight">{selectedBatch.name}</h2>
+                       <button onClick={() => setEditBatchModal({ isOpen: true, id: selectedBatch.id, name: selectedBatch.name, date: selectedBatch.date, population: selectedBatch.population })} className="bg-slate-700/50 hover:bg-indigo-500 text-white p-2 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm font-bold"><Edit size={16}/> Edit Kandang</button>
                        <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">AKTIF</span>
                      </div>
-                     <p className="text-slate-300 font-medium flex items-center gap-5 text-sm">
+                     <p className="text-slate-300 font-medium flex flex-wrap items-center gap-5 text-sm">
                        <span className="flex items-center gap-2"><Users size={16} className="text-slate-400"/> {teams.find(t=>t.id === selectedBatch.teamId)?.name}</span>
+                       <span className="flex items-center gap-2"><Calendar size={16} className="text-slate-400"/> Tgl CI: {formatDate(selectedBatch.date)}</span>
+                       <span className="flex items-center gap-2"><Activity size={16} className="text-slate-400"/> Populasi: {selectedBatch.population} Ekor</span>
                        <span className="flex items-center gap-2"><FileText size={16} className="text-slate-400"/> Total: {batchDocs.length} Dokumen</span>
                      </p>
                   </div>
@@ -1052,6 +1293,38 @@
                   </div>
                   {visibleCount < filteredDocs.length && <div className="p-8 bg-slate-50/50 border-t border-slate-100 text-center"><button onClick={() => setVisibleCount(p => p+50)} className="px-8 py-3.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 shadow-sm transition-all">Tampilkan {filteredDocs.length - visibleCount} Baris Lainnya...</button></div>}
                 </div>
+
+                {/* Modal Edit Kandang */}
+                {editBatchModal.isOpen && (
+                  <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+                     <div className="bg-white rounded-[2rem] max-w-lg w-full shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-slate-100">
+                       <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Edit size={24} className="text-indigo-600"/> Edit Data Kandang</h3>
+                         <button onClick={() => setEditBatchModal({ isOpen: false, id: '', name: '', date: '', population: '' })} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
+                       </div>
+                       <form onSubmit={submitEditBatch}>
+                         <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nama Kandang</label>
+                              <input type="text" value={editBatchModal.name} onChange={(e) => setEditBatchModal({...editBatchModal, name: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white outline-none transition-all font-semibold text-lg text-slate-800" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Tanggal Chick-in</label>
+                              <input type="date" value={editBatchModal.date} onChange={(e) => setEditBatchModal({...editBatchModal, date: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white outline-none transition-all font-semibold text-lg text-slate-800" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Jumlah Populasi</label>
+                              <input type="number" value={editBatchModal.population} onChange={(e) => setEditBatchModal({...editBatchModal, population: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white outline-none transition-all font-semibold text-lg text-slate-800" />
+                            </div>
+                         </div>
+                         <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                           <button type="button" onClick={() => setEditBatchModal({ isOpen: false, id: '', name: '', date: '', population: '' })} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batal</button>
+                           <button type="submit" className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><CheckCircle2 size={20}/> Simpan Perubahan</button>
+                         </div>
+                       </form>
+                     </div>
+                  </div>
+                )}
               </div>
             );
           };
@@ -1059,10 +1332,7 @@
           const LaciAdminView = () => {
             const [activeTab, setActiveTab] = useState('laci');
             const [givePenimbangModal, setGivePenimbangModal] = useState({ isOpen: false, teamId: null });
-            const [penimbangForm, setPenimbangForm] = useState({ name: '' });
-            
-            const [handoverRanges, setHandoverRanges] = useState([{from: '', to: ''}]);
-            const [activeInput, setActiveInput] = useState({ index: 0, field: 'from' });
+            const [penimbangForm, setPenimbangForm] = useState({ name: '', selectedDocs: new Set() });
 
             const drawerDocs = documents.filter(d => d.status === 'DI_ADMIN');
             const penimbangDocs = documents.filter(d => d.status === 'DI_PENIMBANG');
@@ -1080,61 +1350,19 @@
             }, {});
 
             const availableTeamDocs = givePenimbangModal.teamId ? (groupedDrawer[givePenimbangModal.teamId]?.sort((a,b) => parseInt(a.number) - parseInt(b.number)) || []) : [];
-            const availableNumbers = availableTeamDocs.map(d => parseInt(d.number));
 
             const submitGiveToPenimbang = () => {
-              if (!penimbangForm.name.trim()) return fireAlert('Gagal', 'Pastikan nama Penimbang telah diisi.', 'error');
-              
-              let numToUpdate = [];
-              for (const r of handoverRanges) {
-                const f = parseInt(r.from); const t = parseInt(r.to);
-                if (isNaN(f) || isNaN(t) || f > t) continue;
-                for (let i = f; i <= t; i++) numToUpdate.push(i.toString());
+              if (!penimbangForm.name.trim() || penimbangForm.selectedDocs.size === 0) {
+                fireAlert('Gagal', 'Pastikan nama Penimbang dan minimal 1 dokumen telah dipilih.', 'error'); return;
               }
-
-              if (numToUpdate.length === 0) return fireAlert('Gagal', 'Rentang dokumen kosong atau tidak valid.', 'error');
-
-              const missing = numToUpdate.filter(n => !availableNumbers.includes(parseInt(n)));
-              if (missing.length > 0) return fireAlert('Gagal', 'Terdapat nomor dalam rentang yang tidak ada di laci.', 'error');
-
-              let updated = 0;
-              const newDocs = documents.map(d => {
-                if (d.teamId === givePenimbangModal.teamId && d.status === 'DI_ADMIN' && numToUpdate.includes(d.number)) {
-                    updated++; return { ...d, status: 'DI_PENIMBANG', penimbangName: penimbangForm.name.trim() };
-                }
-                return d;
-              });
-
-              setDocuments(newDocs);
+              setDocuments(docs => docs.map(d => penimbangForm.selectedDocs.has(d.id) ? { ...d, status: 'DI_PENIMBANG', penimbangName: penimbangForm.name.trim() } : d));
               setGivePenimbangModal({ isOpen: false, teamId: null });
-              setHandoverRanges([{from: '', to: ''}]);
-              addToast(`${updated} lembar diserahkan ke ${penimbangForm.name}`, 'success');
+              addToast(`Dokumen resmi dipindahkan ke tangan ${penimbangForm.name}`, 'success');
             };
 
             const handleReturnFromPenimbang = (docId) => {
               setDocuments(docs => docs.map(d => d.id === docId ? { ...d, status: 'DI_ADMIN', penimbangName: null } : d));
               addToast('Dokumen ditarik kembali ke Laci Utama Admin', 'success');
-            };
-
-            const handleNumberClick = (numStr) => {
-              if (activeInput.index !== null && handoverRanges[activeInput.index]) {
-                const newRanges = [...handoverRanges];
-                newRanges[activeInput.index][activeInput.field] = numStr;
-                setHandoverRanges(newRanges);
-                if (activeInput.field === 'from') setActiveInput({ index: activeInput.index, field: 'to' });
-              }
-            };
-
-            const isNumberSelected = (num) => {
-              for (const r of handoverRanges) {
-                const f = parseInt(r.from); const t = parseInt(r.to);
-                if (!isNaN(f) && !isNaN(t) && f <= t) {
-                  if (num >= f && num <= t) return true;
-                } else if (!isNaN(f) && isNaN(t)) {
-                  if (num === f) return true;
-                }
-              }
-              return false;
             };
 
             return (
@@ -1171,12 +1399,7 @@
                                   <h3 className="text-xl font-black text-slate-800 tracking-tight mb-1"><Users size={20} className="inline mr-2 text-slate-400"/> {team?.name || 'Tim Dihapus'}</h3>
                                   <span className="bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider shadow-inner">{docs.length} Dokumen Laci</span>
                                 </div>
-                                <button onClick={() => { 
-                                  setGivePenimbangModal({isOpen:true, teamId}); 
-                                  setPenimbangForm({name: team?.penimbang || ''});
-                                  setHandoverRanges([{from:'', to:''}]);
-                                  setActiveInput({index:0, field:'from'});
-                                }} className="w-full sm:w-auto bg-indigo-50 border border-indigo-200 text-indigo-700 px-5 py-3 rounded-xl font-black hover:bg-indigo-100 flex justify-center items-center gap-2 shadow-sm active:scale-95 transition-all group/btn">
+                                <button onClick={() => { setGivePenimbangModal({isOpen:true, teamId}); setPenimbangForm({name: team?.penimbang || '', selectedDocs:new Set()}) }} className="w-full sm:w-auto bg-indigo-50 border border-indigo-200 text-indigo-700 px-5 py-3 rounded-xl font-black hover:bg-indigo-100 flex justify-center items-center gap-2 shadow-sm active:scale-95 transition-all group/btn">
                                   <Briefcase size={18} className="group-hover/btn:-translate-y-0.5 transition-transform"/> Serahkan ke Penimbang
                                 </button>
                               </div>
@@ -1226,126 +1449,41 @@
                   </div>
                 )}
 
-                {givePenimbangModal.isOpen && (() => {
-                   const hasGlobalError = handoverRanges.some(r => {
-                      const f = parseInt(r.from); const t = parseInt(r.to);
-                      if (!r.from && !r.to) return false;
-                      if (isNaN(f)) return true;
-                      if (!isNaN(f) && isNaN(t)) return !availableNumbers.includes(f);
-                      if (!isNaN(f) && !isNaN(t)) {
-                          if (f > t) return true;
-                          for (let x = f; x <= t; x++) { if (!availableNumbers.includes(x)) return true; }
-                      }
-                      return false;
-                   });
-                   const isEmp = !handoverRanges.some(r => r.from);
-
-                   return (
-                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-                      <div className="bg-white rounded-[2rem] max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border border-slate-100">
-                        <div className="p-6 md:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                          <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Briefcase size={24} className="text-indigo-600"/> Handover Dokumen</h3>
-                          <button onClick={() => setGivePenimbangModal({isOpen:false, teamId:null})} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
-                        </div>
-                        
-                        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-                          
-                          <div className="w-full lg:w-1/2 p-6 md:p-8 overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-100 custom-scrollbar">
-                            <div className="mb-8">
-                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 pl-1">Nama Penerima (Penimbang)</label>
-                              <input type="text" placeholder="Ketik nama..." className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-black text-slate-800 text-lg" value={penimbangForm.name} onChange={e => setPenimbangForm({...penimbangForm, name: e.target.value})}/>
-                            </div>
-                            
-                            <div className="mb-4">
-                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Pilih Rentang Laci</label>
-                              <p className="text-xs text-slate-400 font-medium pl-1 mt-1">Klik kotak di bawah, lalu klik nomor di tabel kanan untuk mengisi otomatis.</p>
-                            </div>
-
-                            <div className="space-y-4">
-                              {handoverRanges.map((r, i) => {
-                                  const f = parseInt(r.from); const t = parseInt(r.to);
-                                  let isInvalid = false; let errMsg = ''; let missingNumbers = [];
-
-                                  if (r.from || r.to) {
-                                      if (isNaN(f)) { 
-                                          isInvalid = true; errMsg = 'Nomor mulai belum diisi.'; 
-                                      } else if (!isNaN(f) && isNaN(t)) {
-                                          if (!availableNumbers.includes(f)) { isInvalid = true; errMsg = `Nomor #${f} tidak ada di laci.`; }
-                                      } else if (!isNaN(f) && !isNaN(t)) {
-                                          if (f > t) { 
-                                              isInvalid = true; errMsg = 'Rentang terbalik (Mulai > Sampai).'; 
-                                          } else {
-                                              for (let x = f; x <= t; x++) { if (!availableNumbers.includes(x)) missingNumbers.push(x); }
-                                              if (missingNumbers.length > 0) {
-                                                  isInvalid = true;
-                                                  errMsg = missingNumbers.length <= 3 
-                                                      ? `Nomor lompat (tidak ada di laci): ${missingNumbers.join(', ')}` 
-                                                      : `Ada ${missingNumbers.length} nomor yang lompat (mulai dari #${missingNumbers[0]})`;
-                                              }
-                                          }
-                                      }
-                                  }
-
-                                  return (
-                                    <div key={i} className="mb-2">
-                                        <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${isInvalid ? 'bg-red-50/50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                                            <input 
-                                                type="number" placeholder="Mulai" value={r.from} 
-                                                onClick={() => setActiveInput({index: i, field: 'from'})}
-                                                onChange={e=>{const n=[...handoverRanges]; n[i].from=e.target.value; setHandoverRanges(n)}} 
-                                                className={`w-full border p-3 rounded-xl text-lg font-mono font-black outline-none transition-all ${activeInput.index === i && activeInput.field === 'from' ? 'ring-4 ring-indigo-500/20 border-indigo-500 bg-white' : 'border-slate-200 bg-white focus:border-indigo-300'} ${isInvalid && (r.from===''||!availableNumbers.includes(parseInt(r.from))) ? 'text-red-600' : 'text-slate-800'}`}
-                                            />
-                                            <span className="font-bold text-slate-300">-</span>
-                                            <input 
-                                                type="number" placeholder="Sampai" value={r.to} 
-                                                onClick={() => setActiveInput({index: i, field: 'to'})}
-                                                onChange={e=>{const n=[...handoverRanges]; n[i].to=e.target.value; setHandoverRanges(n)}} 
-                                                className={`w-full border p-3 rounded-xl text-lg font-mono font-black outline-none transition-all ${activeInput.index === i && activeInput.field === 'to' ? 'ring-4 ring-indigo-500/20 border-indigo-500 bg-white' : 'border-slate-200 bg-white focus:border-indigo-300'} ${isInvalid && missingNumbers.length>0 ? 'text-red-600' : 'text-slate-800'}`}
-                                            />
-                                            <button onClick={()=>setHandoverRanges(handoverRanges.filter((_,idx)=>idx!==i))} disabled={handoverRanges.length===1} className={`p-2 rounded-lg disabled:opacity-30 transition-colors ${isInvalid ? 'text-red-400 hover:text-red-600 hover:bg-red-100' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`}><Trash2 size={20}/></button>
-                                        </div>
-                                        {isInvalid && <p className="text-[11px] text-red-600 font-bold mt-2 ml-1 flex items-start gap-1"><AlertCircle size={14} className="shrink-0"/> {errMsg}</p>}
-                                    </div>
-                                  )
-                              })}
-                              <button onClick={()=>setHandoverRanges([...handoverRanges,{from:'',to:''}])} className="text-sm text-indigo-600 font-bold flex items-center gap-2 hover:text-indigo-800 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all mt-2 w-max"><PlusCircle size={18}/> Tambah Baris Rentang</button>
-                            </div>
-                          </div>
-
-                          <div className="w-full lg:w-1/2 bg-slate-50 p-6 md:p-8 flex flex-col h-full overflow-hidden">
-                            <div className="mb-4">
-                              <label className="text-xs font-bold text-indigo-900 uppercase tracking-widest block mb-1">List Laci Tersedia</label>
-                              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm">{availableTeamDocs.length} Lembar</span>
-                            </div>
-                            
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-inner">
-                               <div className="flex flex-wrap gap-2">
-                                 {availableTeamDocs.map(d => {
-                                   const num = parseInt(d.number);
-                                   const isSel = isNumberSelected(num);
-                                   return (
-                                     <button 
-                                        key={d.id} 
-                                        onClick={() => handleNumberClick(d.number)} 
-                                        className={`px-3 py-2 rounded-xl text-sm font-mono font-bold border transition-all active:scale-95 ${isSel ? 'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-200 ring-offset-1' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50'}`}
-                                     >
-                                       {isSel && <CheckCircle2 size={14} className="inline mr-1.5"/>}#{d.number}
-                                     </button>
-                                   )
-                                 })}
-                               </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="p-6 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-                          <button onClick={() => setGivePenimbangModal({isOpen:false, teamId:null})} className="px-8 py-4 font-bold text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all">Batalkan</button>
-                          <button onClick={submitGiveToPenimbang} disabled={hasGlobalError || isEmp} className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all flex items-center gap-2"><UserCheck size={20}/> Serahkan Resmi</button>
-                        </div>
-                      </div>
-                    </div>
-                   );
-                })()}
+                {/* Modal Penimbang */}
+                {givePenimbangModal.isOpen && (
+                  <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+                     <div className="bg-white rounded-[2rem] max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border border-slate-100">
+                       <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                         <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3"><Briefcase size={24} className="text-indigo-600"/> Handover Dokumen</h3>
+                         <button onClick={() => setGivePenimbangModal({isOpen:false, teamId:null})} className="text-slate-400 hover:text-slate-700 bg-white p-2 rounded-full border shadow-sm transition-all"><X size={20}/></button>
+                       </div>
+                       
+                       <div className="p-8 overflow-y-auto flex-1">
+                         <div className="mb-8">
+                           <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 pl-1">Nama Penerima (Penimbang)</label>
+                           <input type="text" placeholder="Ketik nama..." className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-black text-slate-800 text-lg" value={penimbangForm.name} onChange={e => setPenimbangForm({...penimbangForm, name: e.target.value})}/>
+                         </div>
+                         
+                         <div className="mb-4 flex justify-between items-end">
+                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Pilih Dokumen Diserahkan</label>
+                           <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-1.5 rounded-lg shadow-sm">{penimbangForm.selectedDocs.size} Dipilih</span>
+                         </div>
+                         
+                         <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl flex flex-wrap gap-2.5 max-h-64 overflow-y-auto custom-scrollbar">
+                            {availableTeamDocs.map(d => {
+                              const sel = penimbangForm.selectedDocs.has(d.id);
+                              return <button key={d.id} onClick={() => {const set = new Set(penimbangForm.selectedDocs); sel ? set.delete(d.id) : set.add(d.id); setPenimbangForm({...penimbangForm, selectedDocs:set})}} className={`px-4 py-2 rounded-xl text-sm font-mono font-bold border transition-all active:scale-95 ${sel ? 'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/30' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>{sel && <CheckCircle2 size={14} className="inline mr-1.5"/>}#{d.number}</button>
+                            })}
+                         </div>
+                       </div>
+                       
+                       <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                         <button onClick={() => setGivePenimbangModal({isOpen:false, teamId:null})} className="px-8 py-4 font-bold text-slate-600 bg-white border border-slate-200 rounded-2xl hover:bg-slate-100 transition-all">Batalkan</button>
+                         <button onClick={submitGiveToPenimbang} className="px-8 py-4 font-black text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2"><UserCheck size={20}/> Serahkan Resmi</button>
+                       </div>
+                     </div>
+                  </div>
+                )}
               </div>
             );
           };
@@ -1355,6 +1493,14 @@
             const [visibleCount, setVisibleCount] = useState(100);
 
             useEffect(() => { setVisibleCount(100); }, [selectedTeamId]);
+
+            // Hook untuk navigasi dari Global Search
+            useEffect(() => {
+                if (globalNavTarget.type === 'TEAM' && globalNavTarget.id) {
+                    setSelectedTeamId(globalNavTarget.id);
+                    setGlobalNavTarget({ type: null, id: null, keyword: null });
+                }
+            }, [globalNavTarget]);
 
             if (teams.length === 0) return <div className="p-16 text-center text-slate-500 font-medium text-lg">Belum ada data tim. Silakan daftarkan di Master Tim terlebih dahulu.</div>;
 
@@ -1466,7 +1612,7 @@
                                   teamBatches.map(b => (
                                     <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                                       <td className="px-8 py-5 font-black text-slate-700 text-base">{b.name}</td>
-                                      <td className="px-8 py-5 font-semibold text-slate-500">{b.date}</td>
+                                      <td className="px-8 py-5 font-semibold text-slate-500">{formatDate(b.date)}</td>
                                       <td className="px-8 py-5"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
                                       <td className="px-8 py-5 text-center font-black text-slate-700 text-lg">{documents.filter(d=>d.batchId===b.id).length}</td>
                                     </tr>
@@ -1532,20 +1678,75 @@
                     BTPA Hub
                   </h1>
                 </div>
+
+                {/* --- MASTER PENCARIAN GLOBAL --- */}
+                <div className="px-5 mb-4 relative mt-4 md:mt-0 z-50">
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Search size={18} className="text-slate-400" />
+                        </div>
+                        <input 
+                            type="text" 
+                            placeholder="Cari No. BTPA, Kandang, Tim..." 
+                            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none font-bold text-slate-700 text-sm transition-all shadow-inner"
+                            value={globalSearch}
+                            onChange={(e) => {
+                                setGlobalSearch(e.target.value);
+                                setShowSearchBox(e.target.value.length > 0);
+                            }}
+                            onFocus={() => { if(globalSearch) setShowSearchBox(true) }}
+                            onBlur={() => setTimeout(() => setShowSearchBox(false), 200)}
+                        />
+                    </div>
+                    
+                    {/* Kotak Hasil Pencarian Lintas Data */}
+                    {showSearchBox && (
+                        <div className="absolute top-full left-5 right-5 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto z-[100] custom-scrollbar">
+                            {searchResults.length === 0 ? (
+                                <div className="p-6 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-2">
+                                  <Search size={24} className="opacity-50"/>
+                                  Tidak ada hasil ditemukan.
+                                </div>
+                            ) : (
+                                searchResults.map(res => {
+                                    let IconComponent = FileText;
+                                    let iconColor = "text-amber-500 bg-amber-50 border-amber-100";
+                                    
+                                    if (res.type === 'BATCH') { IconComponent = Activity; iconColor = "text-emerald-600 bg-emerald-50 border-emerald-100"; }
+                                    else if (res.type === 'TEAM') { IconComponent = Users; iconColor = "text-indigo-600 bg-indigo-50 border-indigo-100"; }
+                                    else { IconComponent = FileText; iconColor = "text-sky-600 bg-sky-50 border-sky-100"; }
+
+                                    return (
+                                        <div key={res.id} onMouseDown={() => handleGlobalSearchResultClick(res)} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-center group">
+                                            <div className={`p-2 rounded-lg border ${iconColor} group-hover:scale-110 transition-transform`}>
+                                              <IconComponent size={16}/>
+                                            </div>
+                                            <div>
+                                              <div className="font-black text-slate-800 text-sm tracking-tight">{res.title}</div>
+                                              <p className="text-[10px] font-bold text-slate-500 mt-0.5">{res.subtitle}</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                    )}
+                </div>
                 
-                <div className="flex-1 overflow-y-auto py-6 px-5 space-y-2 custom-scrollbar">
-                  <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 mt-2 md:mt-0">Siklus Kandang</p>
+                <div className="flex-1 overflow-y-auto py-2 px-5 space-y-2 custom-scrollbar">
+                  <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Siklus Kandang</p>
                   <NavItem id="chick-in" label="1. Buka Kandang (Input)" icon={PlusCircle} />
                   <NavItem id="proses-panen" label="2. Proses Panen Aktif" icon={RefreshCw} />
+                  <NavItem id="scan-massal" label="Scan Massal (Global)" icon={ClipboardPaste} />
                   
-                  <div className="my-8 border-t border-slate-100 mx-4"></div>
+                  <div className="my-6 border-t border-slate-100 mx-4"></div>
                   
                   <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Inventaris & Gudang</p>
                   <NavItem id="input-laci" label="Tambah Stok Laci" icon={Archive} />
                   <NavItem id="laci-admin" label="Gudang (Laci & PPL)" icon={Inbox} />
                   <NavItem id="monitor-tim" label="Dasbor Analitik Tim" icon={BarChart3} />
                   
-                  <div className="my-8 border-t border-slate-100 mx-4"></div>
+                  <div className="my-6 border-t border-slate-100 mx-4"></div>
                   
                   <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Manajemen Sistem</p>
                   <NavItem id="master-tim" label="Master Data Tim" icon={Users} />
@@ -1555,7 +1756,7 @@
                 <div className="p-6 border-t border-slate-100 bg-slate-50/50">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 text-center shadow-sm">
                     <p className="text-xs font-black text-slate-700 tracking-tight">Sistem Digital BTPA</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Enterprise v2.0</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">&copy; 2026 Teuku Muhammad Hafidh Rafif • <span className="text-emerald-500 font-black">Auto-Save Aktif</span></p>
                   </div>
                 </div>
               </div>
@@ -1571,6 +1772,7 @@
                 {activeMenu === 'proses-panen' && <ProsesPanenView />}
                 {activeMenu === 'laci-admin' && <LaciAdminView />}
                 {activeMenu === 'monitor-tim' && <MonitorTimView />}
+                {activeMenu === 'scan-massal' && <ScanMassalView />}
               </div>
 
               {/* Global Alert / Custom Pop-up Modal */}
