@@ -12,7 +12,10 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
     <!-- Jembatan Fix untuk Bug Lucide-React UMD -->
-    <script>window.react = window.React;</script>
+    <script>
+        window.react = window.React;
+        window['react-dom'] = window.ReactDOM;
+    </script>
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide-react@0.292.0/dist/umd/lucide-react.min.js"></script>
@@ -27,14 +30,44 @@
         // PENTING: Jangan gunakan 'import' di sini. Kita ambil dari variabel global (Window)
         const { useState, useEffect, useMemo, useRef } = React;
         
-        // Memperbaiki referensi library ikon (lucide-react mengekspor ke window.lucide)
-        const { 
-          Menu, X, Users, PlusCircle, Inbox, Activity, 
-          Trash2, CheckCircle2, XCircle, AlertCircle, 
-          RefreshCw, CheckSquare, Archive, ChevronRight,
-          ListOrdered, FileText, BarChart3, Search, Play,
-          Database, Download, Upload, AlertTriangle, UserCheck, Briefcase, Undo2, Edit
-        } = window.lucide || window.lucideReact || window.LucideReact || {};
+        // Memperbaiki referensi library ikon dengan fungsi fallback (Anti-Crash Error #130)
+        const Icons = window.lucideReact || window.LucideReact || window.lucide || {};
+        
+        const safeIcon = (name) => Icons[name] || (({size=24, className=""}) => (
+          <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+             <circle cx="12" cy="12" r="10"></circle>
+             <line x1="12" y1="8" x2="12" y2="12"></line>
+             <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        ));
+
+        const Menu = safeIcon('Menu');
+        const X = safeIcon('X');
+        const Users = safeIcon('Users');
+        const PlusCircle = safeIcon('PlusCircle');
+        const Inbox = safeIcon('Inbox');
+        const Activity = safeIcon('Activity');
+        const Trash2 = safeIcon('Trash2');
+        const CheckCircle2 = safeIcon('CheckCircle2');
+        const XCircle = safeIcon('XCircle');
+        const AlertCircle = safeIcon('AlertCircle');
+        const RefreshCw = safeIcon('RefreshCw');
+        const CheckSquare = safeIcon('CheckSquare');
+        const Archive = safeIcon('Archive');
+        const ChevronRight = safeIcon('ChevronRight');
+        const ListOrdered = safeIcon('ListOrdered');
+        const FileText = safeIcon('FileText');
+        const BarChart3 = safeIcon('BarChart3');
+        const Search = safeIcon('Search');
+        const Play = safeIcon('Play');
+        const Database = safeIcon('Database');
+        const Download = safeIcon('Download');
+        const Upload = safeIcon('Upload');
+        const AlertTriangle = safeIcon('AlertTriangle');
+        const UserCheck = safeIcon('UserCheck');
+        const Briefcase = safeIcon('Briefcase');
+        const Undo2 = safeIcon('Undo2');
+        const Edit = safeIcon('Edit');
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
 
