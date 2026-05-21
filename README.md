@@ -1,59 +1,73 @@
-#Monitor BTPA (Dokumentasi Proyek)
-Monitor BTPA adalah aplikasi dashboard manajemen operasional yang dirancang khusus untuk memantau siklus hidup dokumen BTPA (Bukti Terima Penimbangan Ayam) di lingkungan operasional lapangan. Aplikasi ini membantu tim admin dan pengawas kandang dalam melacak dokumen dari tahap distribusi ke tim lapangan hingga proses panen selesai.
+📊 Monitor BTPA
 
-🚀 Fitur Utama
-Analitik Dasbor Real-time: Visualisasi distribusi status dokumen (Laci Admin, Di Lapangan, Di Penimbang, Terpakai).
+Sistem Digital Manajemen Dokumen Bukti Terima Penimbangan Ayam (BTPA)
 
-Manajemen Siklus Kandang (Chick-in): Sistem alokasi otomatis dokumen ke kandang dengan validasi real-time.
+Monitor BTPA adalah aplikasi antarmuka dasbor operasional (operational dashboard) berbasis web yang dirancang khusus untuk memantau, melacak, dan mengelola siklus hidup dokumen BTPA. Aplikasi ini membantu tim admin dan pengawas kandang melacak perpindahan dokumen—mulai dari gudang pusat (Laci Admin), diserahkan ke Penimbang, dialokasikan ke Kandang (Chick-in), hingga akhirnya berstatus Sah (Selesai Terpakai).
 
-Manajemen Inventaris: Pengelolaan stok dokumen di laci admin dan pelacakan dokumen yang sedang dipegang oleh petugas penimbang.
+✨ Fitur Utama
 
-Scan Massal (Global): Validasi dua tahap untuk memproses penyelesaian status dokumen secara massal dengan laporan akurat.
+Aplikasi ini dilengkapi dengan berbagai fitur cerdas untuk mempercepat proses entri data dan meminimalisir human error:
 
-Navigasi Cerdas: Pencarian global yang memungkinkan navigasi instan ke lokasi spesifik dokumen (kandang, laci, atau penimbang).
+📈 Dasbor Analitik Global & Per-Tim: Visualisasi data real-time menggunakan persentase distribusi dan statistik dokumen (Selesai, Di Laci, Di Penimbang, Menggantung di Lapangan).
 
-Keamanan Data: Sistem Backup dan Restore berbasis file JSON untuk menjaga integritas data Anda.
+👥 Master Data Tim: Pengelolaan kombinasi staf lapangan (Petugas Penyuluh Lapangan / PPL & Penimbang) secara dinamis.
+
+📦 Manajemen Gudang (Laci Admin): Sistem inventaris cerdas yang melacak sisa ketersediaan dokumen dan fitur handover (serah terima) dokumen resmi ke Penimbang.
+
+🐣 Buka Kandang (Chick-in) dengan Smart Click-to-Fill: Sistem alokasi rentang dokumen super cepat. Pengguna cukup mengklik ketersediaan grup nomor BTPA di Laci, dan kolom rentang otomatis terisi tanpa harus mengetik manual.
+
+🚜 Proses Panen (Kandang Aktif): Manajemen siklus panen. Menampilkan dokumen mana yang belum dikembalikan (Menggantung) beserta eksekusi status massal.
+
+📠 Scan Massal (Global) Validasi 2 Tahap: Mendukung copy-paste ratusan nomor sekaligus dari Excel/WhatsApp. Memiliki sistem preview untuk memisahkan dokumen yang valid, ilegal (tidak ditemukan), dan yang sudah diproses sebelum melakukan eksekusi final.
+
+🔍 Pencarian Cerdas (Smart Global Search): Cari nomor BTPA, dan sistem akan langsung mengarahkan pengguna ke halaman spesifik (Kandang/Laci) di mana dokumen tersebut berada.
+
+💾 Database Management: Menggunakan mesin useSyncStorage yang menyimpan data instan tanpa lag ke LocalStorage browser. Dilengkapi fitur Backup (Ekspor ke JSON) dan Restore (Impor dari JSON).
 
 🛠️ Teknologi yang Digunakan
-Proyek ini dibangun dengan pendekatan single-file application untuk portabilitas maksimal tanpa memerlukan build step yang kompleks:
 
-React 18: Core framework untuk komponen UI yang reaktif.
+Proyek ini dibangun menggunakan arsitektur Single-File Web Application. Sangat portabel, tidak memerlukan instalasi server atau npm, dan bisa langsung dijalankan di semua browser modern.
 
-Tailwind CSS: Utility-first CSS framework untuk desain antarmuka yang modern dan responsif.
+React 18 (melalui Babel Standalone)
 
-Lucide React: Pustaka ikon yang bersih dan ringan.
+Tailwind CSS (via CDN untuk desain antarmuka modern & responsif)
 
-Babel Standalone: Memungkinkan penulisan sintaks JSX langsung di dalam peramban (browser).
+Lucide React (Pustaka ikon antarmuka yang tajam dan konsisten)
 
-LocalStorage API: Penyimpanan data lokal yang cepat dan persistent di sisi klien.
+HTML5 & LocalStorage API (Manajemen state persisten)
 
-📂 Struktur Data
-Data aplikasi dikelola dalam format JSON dengan entitas utama:
+🚀 Cara Penggunaan (Zero Setup)
 
-Teams: Master data tim (PPL & Penimbang).
+Aplikasi ini dirancang plug-and-play. Tidak ada prasyarat instalasi perangkat lunak tambahan.
 
-Batches: Data kandang dan riwayat siklus panen.
+Unduh atau simpan file index.html.
 
-Documents: Log individu untuk setiap nomor BTPA beserta status posisinya.
+Klik ganda pada file index.html untuk membukanya melalui peramban (Rekomendasi: Google Chrome, Microsoft Edge, atau Mozilla Firefox).
 
-💡 Panduan Penggunaan
-1. Inisialisasi
-Aplikasi dapat langsung dijalankan hanya dengan membuka file index.html di peramban modern (Chrome/Edge/Firefox).
+Pastikan perangkat Anda terhubung ke internet untuk pertama kali dibuka, agar pustaka React dan Tailwind dapat dimuat dari CDN.
 
-Pastikan koneksi internet tersedia untuk memuat dependensi dari CDN (React, Tailwind, Lucide).
+Data Anda akan tersimpan secara otomatis dan aman di dalam peramban (LocalStorage).
 
-2. Alur Kerja Utama
-Input Data Tim: Pastikan data tim sudah terinput di menu Master Data Tim.
+📂 Alur Kerja Disarankan (Workflow)
 
-Input Stok: Masukkan rentang nomor BTPA ke Gudang (Stok Internal) untuk mengaktifkan dokumen tersebut di sistem.
+Daftarkan Tim: Masuk ke menu Master Data Tim dan buat minimal satu tim kombinasi PPL dan Penimbang.
 
-Chick-in: Saat panen dimulai, gunakan menu Buka Kandang untuk mengalokasikan stok dari laci ke kandang spesifik.
+Tambah Stok: Masuk ke menu Tambah Stok Laci, ketik rentang dokumen kosong yang baru saja dicetak/diterima dari pusat untuk dialokasikan ke tim.
 
-Monitoring: Gunakan fitur Search untuk mencari posisi dokumen secara cepat.
+Buka Kandang: Masuk ke menu 1. Buka Kandang (Input), masukkan data populasi ayam, dan alokasikan dokumen dari Laci ke kandang tersebut.
 
-Scan Selesai: Saat panen, gunakan Scan Massal untuk mengubah status dokumen menjadi "Terpakai" secara otomatis.
+Tutup Siklus / Scan: Saat panen berlangsung, gunakan menu Scan Massal atau 2. Proses Panen Aktif untuk menyahkan dokumen yang telah dipakai.
 
-📦 Backup & Pemulihan
-Disarankan untuk melakukan Backup secara berkala melalui menu Database. Anda cukup menekan tombol "Ekspor Data JSON" dan simpan file tersebut sebagai cadangan.
+⚠️ Peringatan Keamanan Data
 
-Proyek ini dikembangkan sebagai solusi optimasi administrasi operasional. Untuk pengembangan lebih lanjut atau pertanyaan teknis, silakan merujuk pada dokumentasi kode di dalam index.html.
+Karena aplikasi ini berjalan sepenuhnya di sisi klien (Client-side):
+
+JANGAN menghapus riwayat peramban (Clear Browsing Data / Cache & Cookies) Anda secara sembarangan, karena akan menghapus data operasional BTPA Anda.
+
+LAKUKAN BACKUP RUTIN: Masuk ke menu Backup & Restore dan klik Unduh Backup setiap kali Anda selesai melakukan banyak perubahan data. Simpan file .json tersebut di tempat yang aman.
+
+👨‍💻 Pengembang
+
+Dikembangkan dan dirancang khusus untuk optimasi dan digitalisasi administrasi kelengkapan operasional BTPA.
+
+© 2026 Teuku Muhammad Hafidh Rafif
