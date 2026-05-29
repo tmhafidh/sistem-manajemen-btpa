@@ -72,6 +72,7 @@
           const ClipboardPaste = safeIcon('ClipboardPaste'); const FileCheck = safeIcon('FileCheck'); const Calendar = safeIcon('Calendar');
           const MapPin = safeIcon('MapPin'); const Filter = safeIcon('Filter'); const Files = safeIcon('Files');
           const LayoutDashboard = safeIcon('LayoutDashboard'); const Globe = safeIcon('Globe');
+          const Copy = safeIcon('Copy');
 
           const generateId = () => Math.random().toString(36).substr(2, 9);
           
@@ -286,21 +287,21 @@
                                       <tr 
                                         key={b.id} 
                                         onClick={() => {
-                                            if (b.status === 'AKTIF') {
+                                            if (b.status === 'AKTIF' || b.status === 'KOSONG') {
                                                 setActiveMenu('proses-panen');
                                                 setGlobalNavTarget({ type: 'BATCH', id: b.id, keyword: null });
                                             } else {
                                                 if (fireAlert) fireAlert('Kandang Selesai', 'Kandang ini sudah ditutup secara permanen dan hanya tersimpan sebagai arsip.', 'success');
                                             }
                                         }} 
-                                        className={`transition-colors ${b.status === 'AKTIF' ? 'hover:bg-brand-50 cursor-pointer group' : 'hover:bg-slate-50 cursor-default'}`}
+                                        className={`transition-colors ${(b.status === 'AKTIF' || b.status === 'KOSONG') ? 'hover:bg-brand-50 cursor-pointer group' : 'hover:bg-slate-50 cursor-default'}`}
                                       >
                                         <td className="px-8 py-4">
-                                          <p className={`font-black text-base transition-colors ${b.status === 'AKTIF' ? 'text-slate-800 group-hover:text-brand-600' : 'text-slate-700'}`}>{b.name}</p>
+                                          <p className={`font-black text-base transition-colors ${(b.status === 'AKTIF' || b.status === 'KOSONG') ? 'text-slate-800 group-hover:text-brand-600' : 'text-slate-700'}`}>{b.name}</p>
                                           {selectedTeamId === 'ALL' && <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">{teams.find(t=>t.id===b.teamId)?.name}</p>}
                                         </td>
                                         <td className="px-8 py-4 font-semibold text-slate-500">{formatDate(b.date)}</td>
-                                        <td className="px-8 py-4"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
+                                        <td className="px-8 py-4"><span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${b.status==='AKTIF'?'bg-emerald-100 text-emerald-700': b.status==='KOSONG'?'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>{b.status}</span></td>
                                         <td className="px-8 py-4 text-center font-black text-slate-700 text-lg">{documents.filter(d=>d.batchId===b.id).length}</td>
                                       </tr>
                                     ))
@@ -1151,13 +1152,16 @@
             const [batchSearchTerm, setBatchSearchTerm] = useState('');
             const [filterTeam, setFilterTeam] = useState('ALL');
             const [sortByDate, setSortByDate] = useState('NEWEST');
+            const [batchStatusFilter, setBatchStatusFilter] = useState('ALL_ACTIVE'); // Tab Filter: ALL_ACTIVE, AKTIF, KOSONG
             const [editBatchModal, setEditBatchModal] = useState({ isOpen: false, id: '', name: '', date: '', population: '', teamId: '' });
             const [highlightedDocNumber, setHighlightedDocNumber] = useState(null);
+            const [reportModal, setReportModal] = useState({ isOpen: false, content: '' });
             
-            const activeBatches = useMemo(() => batches.filter(b => b.status === 'AKTIF'), [batches]);
+            const activeBatches = useMemo(() => batches.filter(b => b.status === 'AKTIF' || b.status === 'KOSONG'), [batches]);
 
             const processedBatches = useMemo(() => {
                 let filtered = activeBatches;
+                if (batchStatusFilter !== 'ALL_ACTIVE') filtered = filtered.filter(b => b.status === batchStatusFilter);
                 if (batchSearchTerm) filtered = filtered.filter(b => b.name.toLowerCase().includes(batchSearchTerm.toLowerCase()));
                 if (filterTeam !== 'ALL') filtered = filtered.filter(b => b.teamId === filterTeam);
                 return filtered.sort((a, b) => {
@@ -1165,7 +1169,7 @@
                     const dateB = new Date(b.date).getTime();
                     return sortByDate === 'NEWEST' ? dateB - dateA : dateA - dateB;
                 });
-            }, [activeBatches, batchSearchTerm, filterTeam, sortByDate]);
+            }, [activeBatches, batchStatusFilter, batchSearchTerm, filterTeam, sortByDate]);
 
             useEffect(() => {
                 if (globalNavTarget && globalNavTarget.type === 'BATCH' && globalNavTarget.id) {
@@ -1209,6 +1213,74 @@
               addToast(`Eksekusi Massal: Status diubah menjadi ${status === 'TERPAKAI' ? 'Selesai' : 'Ke Laci'}`, 'success');
             };
 
+            const generateRanges = (docs) => {
+                if (!docs || docs.length === 0) return '';
+                const nums = docs.map(d => parseInt(d.number)).sort((a,b) => a - b);
+                let ranges = [];
+                let start = nums[0];
+                let prev = nums[0];
+                for (let i = 1; i <= nums.length; i++) {
+                    if (nums[i] === prev + 1) prev = nums[i];
+                    else {
+                        if (start === prev) ranges.push(start.toString());
+                        else ranges.push(`${start} - ${prev}`);
+                        start = nums[i];
+                        prev = nums[i];
+                    }
+                }
+                return ranges.join(', ');
+            };
+
+            const generateGlobalReport = () => {
+                let reportText = `🚨 *REPORT GLOBAL BTPA GANTUNG* 🚨\n`;
+                let totalDocs = 0;
+                let batchCount = 0;
+                let details = '';
+
+                // Ambil dari processedBatches agar menghormati filter pencarian/tim yang sedang aktif di UI
+                // dan pastikan HANYA kandang dengan status KOSONG yang masuk laporan
+                const targetBatches = processedBatches.filter(b => b.status === 'KOSONG');
+
+                targetBatches.forEach(batch => {
+                    const unresolvedDocs = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').sort((a,b) => parseInt(a.number) - parseInt(b.number));
+                    if (unresolvedDocs.length > 0) {
+                        batchCount++;
+                        totalDocs += unresolvedDocs.length;
+                        const teamName = teams.find(t=>t.id === batch.teamId)?.name || '-';
+                        const rangeStr = generateRanges(unresolvedDocs);
+                        details += `\n*Kandang:* ${batch.name}\n*BTPA:* ${rangeStr}\n*Tim:* ${teamName}\n-----------------------------------`;
+                    }
+                });
+
+                if (batchCount === 0) return fireAlert('Info', 'Tidak ada data kandang kosong dengan BTPA gantung pada daftar yang Anda filter saat ini.', 'success');
+
+                reportText += `Total: ${totalDocs} Lembar di ${batchCount} Kandang\n${details}`;
+                setReportModal({ isOpen: true, content: reportText });
+            };
+
+            const handleCopyReport = () => {
+              const unresolvedDocs = documents.filter(d => d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN').sort((a,b) => parseInt(a.number) - parseInt(b.number));
+              if (unresolvedDocs.length === 0) return;
+              
+              const rangeStr = generateRanges(unresolvedDocs);
+              const teamName = teams.find(t=>t.id === selectedBatch.teamId)?.name || '-';
+              const textToCopy = `🚨 *REPORT BTPA GANTUNG* 🚨\n\n*Kandang:* ${selectedBatch.name}\n*BTPA:* ${rangeStr}\n*Tim:* ${teamName}`;
+
+              setReportModal({ isOpen: true, content: textToCopy });
+            };
+
+            const handleMarkEmpty = () => {
+              if (!selectedBatch) return;
+              setBatches(bs => bs.map(b => b.id === selectedBatch.id ? { ...b, status: 'KOSONG' } : b));
+              fireAlert('Kandang Dikosongkan!', `Ayam di ${selectedBatch.name} ditandai habis. Dokumen BTPA menggantung masih perlu diselesaikan nanti.`, 'success');
+            };
+
+            const handleMarkActive = () => {
+              if (!selectedBatch) return;
+              setBatches(bs => bs.map(b => b.id === selectedBatch.id ? { ...b, status: 'AKTIF' } : b));
+              addToast('Kandang dikembalikan ke status Aktif.', 'success');
+            };
+
             const handleCloseBatch = () => {
               if (!selectedBatch) return;
               const unresolvedDocs = documents.filter(d => d.batchId === selectedBatch.id && d.status === 'DIALOKASIKAN');
@@ -1248,19 +1320,34 @@
                     </div>
 
                   {activeBatches.length > 0 && (
-                      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200/60 flex flex-col md:flex-row gap-4 mb-6 relative z-20">
-                          <div className="flex-1 relative">
-                            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input type="text" placeholder="Cari nama kandang..." value={batchSearchTerm} onChange={e => setBatchSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 transition-all"/>
+                      <div className="space-y-4 mb-6 relative z-20">
+                          <div className="flex flex-col md:flex-row gap-4">
+                              <div className="flex flex-col sm:flex-row gap-2 bg-slate-100 p-2 rounded-2xl w-full md:flex-1 shadow-inner border border-slate-200/50 overflow-x-auto custom-scrollbar">
+                                  <button type="button" onClick={() => setBatchStatusFilter('ALL_ACTIVE')} className={`flex-1 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${batchStatusFilter === 'ALL_ACTIVE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Semua Kandang</button>
+                                  <button type="button" onClick={() => setBatchStatusFilter('AKTIF')} className={`flex-1 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${batchStatusFilter === 'AKTIF' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Ayam Aktif</button>
+                                  <button type="button" onClick={() => setBatchStatusFilter('KOSONG')} className={`flex-1 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center justify-center gap-2 ${batchStatusFilter === 'KOSONG' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                                      <AlertTriangle size={14}/> Kosong (BTPA Gantung)
+                                  </button>
+                              </div>
+                              <button type="button" onClick={generateGlobalReport} className="w-full md:w-auto px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/30 active:scale-95 transition-all shrink-0">
+                                  <Copy size={18}/> Report Semua Gantung
+                              </button>
                           </div>
-                          <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
-                            <option value="ALL">Semua Tim</option>
-                            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                          </select>
-                          <select value={sortByDate} onChange={e => setSortByDate(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
-                            <option value="NEWEST">Terbaru (Tgl CI)</option>
-                            <option value="OLDEST">Terlama (Tgl CI)</option>
-                          </select>
+
+                          <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200/60 flex flex-col md:flex-row gap-4">
+                              <div className="flex-1 relative">
+                                <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input type="text" placeholder="Cari nama kandang..." value={batchSearchTerm} onChange={e => setBatchSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 transition-all"/>
+                              </div>
+                              <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
+                                <option value="ALL">Semua Tim</option>
+                                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                              <select value={sortByDate} onChange={e => setSortByDate(e.target.value)} className="w-full md:w-56 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 outline-none font-bold text-sm text-slate-700 cursor-pointer appearance-none">
+                                <option value="NEWEST">Terbaru (Tgl CI)</option>
+                                <option value="OLDEST">Terlama (Tgl CI)</option>
+                              </select>
+                          </div>
                       </div>
                   )}
 
@@ -1283,17 +1370,21 @@
                           const team = teams.find(t => t.id === batch.teamId)?.name || 'Tim Dihapus';
                           const unresolved = documents.filter(d => d.batchId === batch.id && d.status === 'DIALOKASIKAN').length;
                           return (
-                            <div key={batch.id} onClick={() => {setSelectedBatchId(batch.id); setVisibleCount(50); setSearchTerm('');}} className="bg-white rounded-3xl p-8 border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-brand-300 cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col">
-                              <div className="absolute top-0 right-0 w-32 h-32 bg-brand-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+                            <div key={batch.id} onClick={() => {setSelectedBatchId(batch.id); setVisibleCount(50); setSearchTerm('');}} className={`bg-white rounded-3xl p-8 border shadow-sm cursor-pointer transition-all duration-300 group relative overflow-hidden flex flex-col ${batch.status === 'KOSONG' ? 'border-red-200 hover:shadow-red-500/20 hover:border-red-400' : 'border-slate-200/60 hover:shadow-xl hover:border-brand-300'}`}>
+                              <div className={`absolute top-0 right-0 w-32 h-32 rounded-bl-full -z-10 transition-transform duration-500 group-hover:scale-125 ${batch.status === 'KOSONG' ? 'bg-red-50' : 'bg-brand-50'}`}></div>
                               <div className="flex justify-between items-start mb-6">
                                 <div>
-                                  <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2 group-hover:text-brand-600 transition-colors"><HighlightText text={batch.name} highlight={batchSearchTerm} /></h3>
+                                  <h3 className={`text-2xl font-black tracking-tight mb-2 transition-colors ${batch.status === 'KOSONG' ? 'text-red-950 group-hover:text-red-600' : 'text-slate-800 group-hover:text-brand-600'}`}><HighlightText text={batch.name} highlight={batchSearchTerm} /></h3>
                                   <div className="flex flex-col gap-2">
                                     <span className="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Users size={14}/> {team}</span>
-                                    <span className="bg-brand-50 border border-brand-100 text-brand-600 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max"><Calendar size={14}/> Tgl CI: {formatDate(batch.date)}</span>
+                                    <span className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 w-max border ${batch.status === 'KOSONG' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-brand-50 text-brand-600 border-brand-100'}`}><Calendar size={14}/> Tgl CI: {formatDate(batch.date)}</span>
                                   </div>
                                 </div>
-                                <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-brand-500/30 mt-1">Aktif</span>
+                                {batch.status === 'KOSONG' ? (
+                                    <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-red-500/30 mt-1">Kosong</span>
+                                ) : (
+                                    <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md shadow-brand-500/30 mt-1">Aktif</span>
+                                )}
                               </div>
                               <div className="flex items-center gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100 mt-auto">
                                 <div className="flex-1"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Populasi</p><p className="text-xl font-black text-slate-700">{batch.population}</p></div>
@@ -1305,6 +1396,42 @@
                     })}
                   </div>
                   )}
+
+                  {/* MODAL PREVIEW REPORT WA (GLOBAL) */}
+                  {reportModal.isOpen && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[110] p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-[2rem] border border-slate-100 p-8 max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight"><FileText className="text-green-500" size={28}/> Preview Report WA</h3>
+                                <button onClick={() => setReportModal({ isOpen: false, content: '' })} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
+                            </div>
+                            
+                            <div className="mb-2 px-1 flex justify-between items-center text-xs font-bold text-slate-400">
+                                <span>Anda bisa mengedit teks di bawah sebelum disalin.</span>
+                            </div>
+                            
+                            <textarea 
+                                value={reportModal.content}
+                                onChange={(e) => setReportModal({...reportModal, content: e.target.value})}
+                                className="w-full flex-1 min-h-[300px] p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 font-mono text-sm text-slate-700 resize-none mb-6 custom-scrollbar transition-all"
+                            />
+                            
+                            <div className="flex gap-3 justify-end shrink-0">
+                                <button onClick={() => setReportModal({ isOpen: false, content: '' })} className="px-6 py-4 bg-slate-100 hover:bg-slate-200 font-bold text-slate-600 rounded-2xl transition-colors">Tutup</button>
+                                <button onClick={() => {
+                                    const textArea = document.createElement("textarea");
+                                    textArea.value = reportModal.content;
+                                    textArea.style.position = "fixed"; textArea.style.opacity = "0";
+                                    document.body.appendChild(textArea);
+                                    textArea.focus(); textArea.select();
+                                    try { document.execCommand('copy'); addToast('Teks berhasil disalin ke Clipboard!', 'success'); setReportModal({ isOpen: false, content: '' }); } catch (err) { fireAlert('Gagal', 'Tidak bisa menyalin.', 'error'); }
+                                    document.body.removeChild(textArea);
+                                }} className="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg shadow-green-500/30 flex items-center gap-2 active:scale-95 transition-all"><Copy size={20}/> Salin ke Clipboard</button>
+                            </div>
+                        </div>
+                    </div>
+                  )}
+
                 </div>
               );
             }
@@ -1321,33 +1448,57 @@
                     Kembali ke Daftar Kandang
                 </button>
                 
-                <div className="bg-slate-800 rounded-[2rem] p-8 md:p-10 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden text-white">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/20 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+                <div className={`rounded-[2rem] p-8 md:p-10 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden text-white ${selectedBatch.status === 'KOSONG' ? 'bg-red-900 border border-red-800' : 'bg-slate-800'}`}>
+                    <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2 ${selectedBatch.status === 'KOSONG' ? 'bg-red-500/40' : 'bg-brand-500/20'}`}></div>
                     <div>
                       <div className="flex flex-wrap items-center gap-4 mb-3">
                         <h2 className="text-4xl font-black tracking-tight">{selectedBatch.name}</h2>
-                        <button type="button" onClick={() => setEditBatchModal({ isOpen: true, id: selectedBatch.id, name: selectedBatch.name, date: selectedBatch.date, population: selectedBatch.population, teamId: selectedBatch.teamId })} className="bg-slate-700/50 hover:bg-indigo-500 text-white p-2 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm font-bold"><Edit size={16}/> Edit Kandang</button>
-                        <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">AKTIF</span>
+                        <button type="button" onClick={() => setEditBatchModal({ isOpen: true, id: selectedBatch.id, name: selectedBatch.name, date: selectedBatch.date, population: selectedBatch.population, teamId: selectedBatch.teamId })} className={`text-white p-2 rounded-xl transition-all shadow-sm flex items-center gap-2 text-sm font-bold ${selectedBatch.status === 'KOSONG' ? 'bg-red-800 hover:bg-red-700' : 'bg-slate-700/50 hover:bg-indigo-500'}`}><Edit size={16}/> Edit</button>
+                        {selectedBatch.status === 'KOSONG' ? (
+                            <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">KOSONG (GANTUNG)</span>
+                        ) : (
+                            <span className="bg-brand-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-md">AKTIF</span>
+                        )}
                       </div>
                       <p className="text-slate-300 font-medium flex flex-wrap items-center gap-5 text-sm">
-                        <span className="flex items-center gap-2"><Users size={16} className="text-slate-400"/> {teams.find(t=>t.id === selectedBatch.teamId)?.name}</span>
-                        <span className="flex items-center gap-2"><Calendar size={16} className="text-slate-400"/> Tgl CI: {formatDate(selectedBatch.date)}</span>
-                        <span className="flex items-center gap-2"><Activity size={16} className="text-slate-400"/> Populasi: {selectedBatch.population} Ekor</span>
-                        <span className="flex items-center gap-2"><FileText size={16} className="text-slate-400"/> Total: {batchDocs.length} Dokumen</span>
+                        <span className="flex items-center gap-2"><Users size={16} className={`${selectedBatch.status === 'KOSONG' ? 'text-red-300' : 'text-slate-400'}`}/> {teams.find(t=>t.id === selectedBatch.teamId)?.name}</span>
+                        <span className="flex items-center gap-2"><Calendar size={16} className={`${selectedBatch.status === 'KOSONG' ? 'text-red-300' : 'text-slate-400'}`}/> Tgl CI: {formatDate(selectedBatch.date)}</span>
+                        <span className="flex items-center gap-2"><Activity size={16} className={`${selectedBatch.status === 'KOSONG' ? 'text-red-300' : 'text-slate-400'}`}/> Populasi: {selectedBatch.population} Ekor</span>
+                        <span className="flex items-center gap-2"><FileText size={16} className={`${selectedBatch.status === 'KOSONG' ? 'text-red-300' : 'text-slate-400'}`}/> Total: {batchDocs.length} Dokumen</span>
                       </p>
                     </div>
-                    <button type="button" onClick={handleCloseBatch} className={`w-full md:w-auto px-10 py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all ${unresolvedCount === 0 ? 'bg-brand-500 text-white hover:bg-brand-400 shadow-lg shadow-brand-500/30 active:scale-95' : 'bg-slate-700 text-slate-500 cursor-not-allowed border border-slate-600'}`}>
-                      <Archive size={24} /> Tutup Siklus Permanen
-                    </button>
+
+                    <div className="flex flex-col gap-3 w-full md:w-auto shrink-0">
+                        {selectedBatch.status === 'AKTIF' ? (
+                            <button type="button" onClick={handleMarkEmpty} className="w-full px-8 py-4 bg-red-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-red-500/30 hover:bg-red-400 active:scale-95 transition-all text-sm">
+                                <AlertTriangle size={18}/> Tandai Kandang Kosong
+                            </button>
+                        ) : (
+                            <button type="button" onClick={handleMarkActive} className="w-full px-8 py-4 bg-red-950 border border-red-800 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg hover:bg-red-800 active:scale-95 transition-all text-sm">
+                                <Undo2 size={18}/> Batal (Jadikan Aktif)
+                            </button>
+                        )}
+                        
+                        <button type="button" onClick={handleCloseBatch} className={`w-full px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-sm ${unresolvedCount === 0 ? 'bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-500/30 active:scale-95' : 'bg-white/10 text-white/50 cursor-not-allowed border border-white/10'}`}>
+                            <Archive size={18} /> Tutup Siklus Permanen
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-[2rem] p-5 border border-slate-200/60 shadow-sm flex flex-col lg:flex-row justify-between items-center gap-5 sticky top-4 z-20">
-                    <div className="flex items-center justify-between lg:justify-start gap-4 bg-amber-50 px-6 py-4 rounded-2xl border border-amber-100 w-full lg:w-auto">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></div>
-                        <span className="text-amber-800 font-black text-sm tracking-wide">MENGGANTUNG</span>
-                      </div>
-                      <span className="text-amber-600 font-black text-xl">{unresolvedCount}</span>
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                        <div className="flex items-center justify-between lg:justify-start gap-4 bg-amber-50 px-6 py-4 rounded-2xl border border-amber-100 w-full sm:w-auto">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></div>
+                            <span className="text-amber-800 font-black text-sm tracking-wide">MENGGANTUNG</span>
+                          </div>
+                          <span className="text-amber-600 font-black text-xl">{unresolvedCount}</span>
+                        </div>
+                        {unresolvedCount > 0 && (
+                            <button type="button" onClick={handleCopyReport} className="w-full sm:w-auto px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-500/30 active:scale-95 transition-all shrink-0">
+                                <FileText size={18}/> Preview Report
+                            </button>
+                        )}
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
@@ -1435,6 +1586,41 @@
                         </div>
                       </form>
                     </div>
+                  </div>
+                )}
+
+                {/* MODAL PREVIEW REPORT WA */}
+                {reportModal.isOpen && (
+                  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[110] p-4 animate-in fade-in duration-200">
+                      <div className="bg-white rounded-[2rem] border border-slate-100 p-8 max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]">
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3 tracking-tight"><FileText className="text-green-500" size={28}/> Preview Report WA</h3>
+                              <button onClick={() => setReportModal({ isOpen: false, content: '' })} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
+                          </div>
+                          
+                          <div className="mb-2 px-1 flex justify-between items-center text-xs font-bold text-slate-400">
+                              <span>Anda bisa mengedit teks di bawah sebelum disalin.</span>
+                          </div>
+                          
+                          <textarea 
+                              value={reportModal.content}
+                              onChange={(e) => setReportModal({...reportModal, content: e.target.value})}
+                              className="w-full flex-1 min-h-[300px] p-5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 font-mono text-sm text-slate-700 resize-none mb-6 custom-scrollbar transition-all"
+                          />
+                          
+                          <div className="flex gap-3 justify-end shrink-0">
+                              <button onClick={() => setReportModal({ isOpen: false, content: '' })} className="px-6 py-4 bg-slate-100 hover:bg-slate-200 font-bold text-slate-600 rounded-2xl transition-colors">Tutup</button>
+                              <button onClick={() => {
+                                  const textArea = document.createElement("textarea");
+                                  textArea.value = reportModal.content;
+                                  textArea.style.position = "fixed"; textArea.style.opacity = "0";
+                                  document.body.appendChild(textArea);
+                                  textArea.focus(); textArea.select();
+                                  try { document.execCommand('copy'); addToast('Teks berhasil disalin ke Clipboard!', 'success'); setReportModal({ isOpen: false, content: '' }); } catch (err) { fireAlert('Gagal', 'Tidak bisa menyalin.', 'error'); }
+                                  document.body.removeChild(textArea);
+                              }} className="px-8 py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-lg shadow-green-500/30 flex items-center gap-2 active:scale-95 transition-all"><Copy size={20}/> Salin ke Clipboard</button>
+                          </div>
+                      </div>
                   </div>
                 )}
               </div>
@@ -2164,14 +2350,14 @@
             const handleGlobalSearchResultClick = (res) => {
                 setGlobalSearch(''); setShowSearchBox(false);
                 if (res.type === 'BATCH') {
-                    if (res.data.status === 'AKTIF') { setActiveMenu('proses-panen'); setGlobalNavTarget({ type: 'BATCH', id: res.id }); } 
+                    if (res.data.status === 'AKTIF' || res.data.status === 'KOSONG') { setActiveMenu('proses-panen'); setGlobalNavTarget({ type: 'BATCH', id: res.id }); } 
                     else { setActiveMenu('dashboard'); setGlobalNavTarget({ type: 'TEAM', id: res.data.teamId }); }
                 } else if (res.type === 'TEAM') { setActiveMenu('dashboard'); setGlobalNavTarget({ type: 'TEAM', id: res.id });
                 } else if (res.type === 'DOCUMENT') { 
                     const doc = res.data;
                     if (doc.status === 'DIALOKASIKAN' || doc.status === 'TERPAKAI') {
                         const batch = batches.find(b => b.id === doc.batchId);
-                        if (batch && batch.status === 'AKTIF') {
+                        if (batch && (batch.status === 'AKTIF' || batch.status === 'KOSONG')) {
                             setActiveMenu('proses-panen');
                             setGlobalNavTarget({ type: 'BATCH', id: batch.id, highlightNumber: doc.number });
                         } else {
