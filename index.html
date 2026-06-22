@@ -519,9 +519,11 @@
             const [restoreModal, setRestoreModal] = useState({ isOpen: false, data: null });
             const [resetModal, setResetModal] = useState({ isOpen: false, keyword: '' });
 
+            // Normalisasi: Hapus angka 0 di depan (misal: 000521 jadi 521)
+            const normalizedSearch = search.replace(/\b0+(?=\d)/g, '');
             const filteredDocs = documents.filter(doc => {
               const matchesStatus = filterStatus === 'SEMUA' || doc.status === filterStatus;
-              const matchesSearch = doc.number.includes(search);
+              const matchesSearch = doc.number.includes(normalizedSearch);
               return matchesStatus && matchesSearch;
             });
 
@@ -605,7 +607,7 @@
                           <tbody className="divide-y divide-slate-100">
                               {filteredDocs.map(doc => (
                                   <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
-                                      <td className="px-8 py-4 font-mono font-black text-slate-700 text-lg"><HighlightText text={`#${doc.number}`} highlight={search} /></td>
+                                      <td className="px-8 py-4 font-mono font-black text-slate-700 text-lg"><HighlightText text={`#${doc.number}`} highlight={normalizedSearch} /></td>
                                       <td className="px-8 py-4 font-bold text-slate-600 flex items-center gap-2"><Users size={16} className="text-slate-400"/> {teams.find(t=>t.id===doc.teamId)?.name || '-'}</td>
                                       <td className="px-8 py-5">
                                           {doc.status === 'DIALOKASIKAN' && <span className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-1.5 border border-slate-200 shadow-sm"><Activity size={12}/> Di Lapangan</span>}
@@ -1446,7 +1448,8 @@
             }
 
             const batchDocs = documents.filter(d => d.batchId === selectedBatch.id).sort((a,b) => parseInt(a.number) - parseInt(b.number));
-            const filteredDocs = searchTerm ? batchDocs.filter(d => d.number.includes(searchTerm)) : batchDocs;
+            const normalizedSearchTerm = searchTerm.replace(/\b0+(?=\d)/g, '');
+            const filteredDocs = normalizedSearchTerm ? batchDocs.filter(d => d.number.includes(normalizedSearchTerm)) : batchDocs;
             const visibleDocsList = filteredDocs.slice(0, visibleCount);
             const unresolvedCount = batchDocs.filter(d => d.status === 'DIALOKASIKAN').length;
 
@@ -1536,7 +1539,7 @@
                           {visibleDocsList.map((doc, idx) => (
                             <tr key={doc.id} id={`doc-${doc.number}`} className={`transition-all duration-500 group ${highlightedDocNumber === doc.number ? 'bg-brand-50 shadow-[inset_0_0_0_2px_#f36d1c] relative z-10' : 'hover:bg-slate-50/50'}`}>
                               <td className="px-8 py-6 text-slate-400 font-bold">{idx + 1}</td>
-                              <td className="px-8 py-6 font-black text-slate-800 font-mono text-2xl tracking-wider"><HighlightText text={`#${doc.number}`} highlight={searchTerm} /></td>
+                              <td className="px-8 py-6 font-black text-slate-800 font-mono text-2xl tracking-wider"><HighlightText text={`#${doc.number}`} highlight={normalizedSearchTerm} /></td>
                               <td className="px-8 py-6">
                                 {doc.status === 'DIALOKASIKAN' && <span className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-2 border border-slate-200"><Activity size={14}/> Di Lapangan</span>}
                                 {doc.status === 'TERPAKAI' && <span className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center w-max gap-2 border border-emerald-200 shadow-sm"><CheckCircle2 size={14}/> Sah (Selesai)</span>}
@@ -2176,7 +2179,10 @@
               const handleValidate = () => {
                   if (!inputText.trim()) return fireAlert('Gagal', 'Masukkan nomor BTPA terlebih dahulu pada kotak teks.', 'error');
                   const numbers = inputText.match(/\d+/g) || [];
-                  const uniqueNumbers = [...new Set(numbers)]; 
+                  
+                  // Normalisasi: buang angka 0 di depan agar 000521 terkonversi sempurna menjadi 521
+                  const normalizedNumbers = numbers.map(n => parseInt(n, 10).toString());
+                  const uniqueNumbers = [...new Set(normalizedNumbers)]; 
                   if (uniqueNumbers.length === 0) return fireAlert('Gagal', 'Tidak ada angka yang terdeteksi dari teks yang Anda masukkan.', 'error');
 
                   let ready = []; let already = []; let notFound = [];
@@ -2350,10 +2356,11 @@
             const searchResults = useMemo(() => {
                 if (!globalSearch.trim()) return [];
                 const query = globalSearch.toLowerCase().trim();
+                const numQuery = query.replace(/\b0+(?=\d)/g, ''); // Normalisasi pencarian nomor untuk Dokumen
                 let results = [];
                 batches.forEach(b => { if (b.name.toLowerCase().includes(query)) results.push({ id: b.id, type: 'BATCH', title: b.name, subtitle: `Status: ${b.status} | Populasi: ${b.population}`, data: b }); });
                 teams.forEach(t => { if (t.name.toLowerCase().includes(query) || (t.ppl || '').toLowerCase().includes(query) || (t.penimbang || '').toLowerCase().includes(query)) results.push({ id: t.id, type: 'TEAM', title: t.name, subtitle: `PPL: ${t.ppl || '-'} | Penim: ${t.penimbang || '-'}`, data: t }); });
-                documents.forEach(d => { if (d.number.includes(query)) results.push({ id: d.id, type: 'DOCUMENT', title: `BTPA #${d.number}`, subtitle: `Status: ${d.status}`, data: d }); });
+                documents.forEach(d => { if (d.number.includes(numQuery)) results.push({ id: d.id, type: 'DOCUMENT', title: `BTPA #${d.number}`, subtitle: `Status: ${d.status}`, data: d }); });
                 return results.slice(0, 15);
             }, [globalSearch, documents, teams, batches]);
 
@@ -2413,8 +2420,9 @@
                           <div className="absolute top-full left-5 right-5 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto z-[100] custom-scrollbar">
                               {searchResults.length === 0 ? (<div className="p-6 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-2"><Search size={24} className="opacity-50"/> Tidak ada hasil ditemukan.</div>) : ( searchResults.map(res => {
                                   let IconComponent = FileText; let iconColor = "text-amber-500 bg-amber-50 border-amber-100";
-                                  if (res.type === 'BATCH') { IconComponent = Activity; iconColor = "text-brand-600 bg-brand-50 border-brand-100"; } else if (res.type === 'TEAM') { IconComponent = Users; iconColor = "text-indigo-600 bg-indigo-50 border-indigo-100"; }
-                                  return (<div key={res.id} onMouseDown={() => handleGlobalSearchResultClick(res)} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-center group"><div className={`p-2 rounded-lg border ${iconColor} group-hover:scale-110 transition-transform`}><IconComponent size={16}/></div><div><div className="font-black text-slate-800 text-sm tracking-tight"><HighlightText text={res.title} highlight={globalSearch} /></div><p className="text-[10px] font-bold text-slate-500 mt-0.5"><HighlightText text={res.subtitle} highlight={globalSearch} /></p></div></div>)
+                                  let highlightQuery = globalSearch;
+                                  if (res.type === 'BATCH') { IconComponent = Activity; iconColor = "text-brand-600 bg-brand-50 border-brand-100"; } else if (res.type === 'TEAM') { IconComponent = Users; iconColor = "text-indigo-600 bg-indigo-50 border-indigo-100"; } else if (res.type === 'DOCUMENT') { highlightQuery = globalSearch.replace(/\b0+(?=\d)/g, ''); }
+                                  return (<div key={res.id} onMouseDown={() => handleGlobalSearchResultClick(res)} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-center group"><div className={`p-2 rounded-lg border ${iconColor} group-hover:scale-110 transition-transform`}><IconComponent size={16}/></div><div><div className="font-black text-slate-800 text-sm tracking-tight"><HighlightText text={res.title} highlight={highlightQuery} /></div><p className="text-[10px] font-bold text-slate-500 mt-0.5"><HighlightText text={res.subtitle} highlight={highlightQuery} /></p></div></div>)
                               }) )}
                           </div>
                       )}
